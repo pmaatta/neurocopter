@@ -398,8 +398,7 @@ class GameParameters {
         canvas: HTMLCanvasElement = document.querySelector("canvas")!,
         pixelOffsetPerMillisecond: number = 0.5, 
         
-        caveMinRadius: number = 200, 
-        // caveMinRadius: number = 70, 
+        caveMinRadius: number = 200,  // 70
         caveRadiusVariation: number = 80,
         caveDyVariation: number = 160,
         caveXSpacing: number = 100,
@@ -452,14 +451,13 @@ interface AIStrategy {
         xs: number[],
         copterX: number,
         copterY: number,
-        copterYSpeed: number,
-        copterDead: boolean
+        copterYSpeed: number
     ): number[];
 
     decision(encodedInput: number[]): boolean;
 }
 
-class TestAI_1 implements AIStrategy {
+class RandomAI implements AIStrategy {
     
     encodeInputData(
         rs: number[],
@@ -467,36 +465,14 @@ class TestAI_1 implements AIStrategy {
         xs: number[],
         copterX: number,
         copterY: number,
-        copterYSpeed: number,
-        copterDead: boolean
+        copterYSpeed: number
     ): number[] 
     {
         return [];
     }
 
     decision(encodedInput: number[]): boolean {
-        return true;
-    }
-}
-
-class TestAI_2 implements AIStrategy {
-    
-    encodeInputData(
-        rs: number[],
-        dys: number[],
-        xs: number[],
-        copterX: number,
-        copterY: number,
-        copterYSpeed: number,
-        copterDead: boolean
-    ): number[] 
-    {
-        return [];
-    }
-
-    decision(encodedInput: number[]): boolean {
-        if (Math.random() < 0.21) return true;
-        return false;
+        return Math.random() < 0.2;
     }
 }
 
@@ -514,8 +490,7 @@ class Game {
         this.parameters = parameters;
         this.gameOver = false;
         this.previousTimestamp = 0;
-        // this.strategy = new TestAI_1();
-        this.strategy = new TestAI_2();
+        this.strategy = new RandomAI();
 
         this.cave = new Cave(
             parameters.initialRadiuses,
@@ -549,7 +524,7 @@ class Game {
                     parameters.pixelOffsetPerMillisecond
                 )
             );
-            if (i == 0 && parameters.hasHumanPlayer) {
+            if (i === 0 && parameters.hasHumanPlayer) {
                 copter.addPlayerControls();
             }
             this.copters.push(copter);
@@ -586,8 +561,7 @@ class Game {
     AIStep(): void {
 
         this.copters.forEach(copter => {
-
-            if (copter.isHuman) return;
+            if (copter.dead || copter.isHuman) return;
 
             const encodedInput = this.strategy.encodeInputData(
                 this.cave.radiuses,
@@ -595,8 +569,7 @@ class Game {
                 this.cave.xCoords,
                 copter.x,
                 copter.y,
-                copter.ySpeed,
-                copter.dead
+                copter.ySpeed
             );
 
             const decision = this.strategy.decision(encodedInput);
@@ -651,7 +624,6 @@ function onDocumentReady(callback: () => void): void {
 
 function main(): void {
 
-
     // -- Initialization -- //
 
     const game = new Game(new GameParameters(50, false));
@@ -683,6 +655,9 @@ onDocumentReady(main);
 
 // TODO copter max speed params
 // TODO copter image size params for collision
-// TODO copter collision in multiple points
-// TODO class to store globals / class Game / etc
-// TODO cave generation params, difficulty
+// TODO difficulty params
+
+// AI Notes
+// rs, dys, xs: index 6-> relevant
+// normalize encoded input!
+// neural net weight initiailzation
