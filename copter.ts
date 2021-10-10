@@ -151,38 +151,55 @@ class Cave {
         return false;
     }
 
-    draw(canvas: HTMLCanvasElement): void {
+    getYoffsets(n: number, a: number, b: number = 2, maxValue: number = 750) {
+        const offsets = [];
+        for (let i = 0; i < n; i++) {
+            let x = a * Math.pow(i, b);
+            x = x > maxValue ? maxValue : x;
+            offsets.push(x);
+        }
+        return offsets;
+    }
 
-        clearCanvas(canvas);
+    drawShape(shape: "ceiling" | "floor", canvas: HTMLCanvasElement, color: string, yOffset: number = 0) {
         
         const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "rgb(6, 128, 156)";
-    
-        // Ceiling
+        ctx.fillStyle = color;
+
+        const yMax = shape === "ceiling" ? 0 : canvas.height;
+
         ctx.beginPath();
-        ctx.moveTo(0, 0);
+        ctx.moveTo(0, yMax);
         for (let i = 0; i < this.xCoords.length; i++) {
             const r = this.radiuses[i];
             const dy = this.dys[i];
             const x = this.xCoords[i];
-            const y = this.getCeilingY(r, dy);
+            let y;
+            if (shape === "ceiling") {
+                y = this.getCeilingY(r, dy) - yOffset;
+            } else {
+                y = this.getFloorY(r, dy) + yOffset;
+            }
             ctx.lineTo(x, y);
         }
-        ctx.lineTo(canvas.width, 0);
+        ctx.lineTo(canvas.width, yMax);
         ctx.fill();
-        
-        // Floor
-        ctx.beginPath();
-        ctx.moveTo(0, canvas.height);
-        for (let i = 0; i < this.xCoords.length; i++) {
-            const r = this.radiuses[i];
-            const dy = this.dys[i];
-            const x = this.xCoords[i];
-            const y = this.getFloorY(r, dy);
-            ctx.lineTo(x, y);
+    }
+
+    draw(canvas: HTMLCanvasElement): void {
+
+        const hue = 191;
+        const saturation = 100;
+        const lightnesses = [39, 37, 34, 30, 27, 25, 22, 20];
+        const yOffsets = this.getYoffsets(8, 4, 2);
+
+        for (let i = 0; i < lightnesses.length; i++) {
+            const lightness = lightnesses[i];
+            const yOffset = yOffsets[i];
+            const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            this.drawShape("ceiling", canvas, color, yOffset);
+            this.drawShape("floor", canvas, color, yOffset);
         }
-        ctx.lineTo(canvas.width, canvas.height);
-        ctx.fill();
     }
 
 }
@@ -581,6 +598,7 @@ class Game {
     }
 
     step(elapsedTime: number): void {
+        clearCanvas(this.parameters.canvas);
         this.AIStep();
         this.caveStep(elapsedTime);
         this.copterStep(elapsedTime);
@@ -598,7 +616,11 @@ function drawCircle(canvas: HTMLCanvasElement, x: number, y: number, color: stri
 
 function clearCanvas(canvas: HTMLCanvasElement): void {
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "rgb(163, 221, 247)";
+    const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+    gradient.addColorStop(0, "hsl(199, 100%, 50%)");
+    gradient.addColorStop(0.5, "hsl(199, 100%, 90%)");
+    gradient.addColorStop(1, "hsl(285, 100%, 80%)");
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -626,7 +648,14 @@ function main(): void {
 
     // -- Initialization -- //
 
-    const game = new Game(new GameParameters(50, false));
+    // Single player
+    const parameters = new GameParameters();
+    parameters.caveMinRadius = 70;
+    
+    // AI
+    // const parameters = new GameParameters(50, false);
+
+    const game = new Game(parameters);
     
 
     // -- Game loop -- //
