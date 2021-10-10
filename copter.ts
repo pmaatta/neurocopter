@@ -630,10 +630,14 @@ class NeuralNet {
     }
 
     static test_forward(): void {
-        const NN = new NeuralNet([33, 5, 5, 1]);
+        
+        const layers = [33, 5, 5, 1];
+        const numIn = layers[0];
+        const NN = new NeuralNet(layers);
+
         for (let j = 0; j < 1000; j++) {
-            const input = new Array(33);
-            for (let i = 0; i < 33; i++) {
+            const input = new Array(numIn);
+            for (let i = 0; i < numIn; i++) {
                 input[i] = Math.random();
             }
             const output = NN.forward(input);
@@ -672,6 +676,36 @@ class RandomAI implements AIStrategy {
 
     decision(encodedInput: number[]): boolean {
         return Math.random() < 0.2;
+    }
+}
+
+class TestNeuralNetAI implements AIStrategy {
+
+    neuralNet: NeuralNet;
+
+    constructor() {
+        this.neuralNet = new NeuralNet([33, 5, 5, 1]);
+    }
+    
+    encodeInputData(
+        rs: number[],
+        dys: number[],
+        xs: number[],
+        copterX: number,
+        copterY: number,
+        copterYSpeed: number
+    ): number[] 
+    {
+        const data = new Array(33);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = MathUtil.randomNormal(Math.sqrt(2)) - 1;
+        }
+        return data;
+    }
+
+    decision(encodedInput: number[]): boolean {
+        const output = this.neuralNet.forward(encodedInput);
+        return output[0] > 0.5;
     }
 }
 
@@ -766,7 +800,8 @@ class Game {
         this.parameters = parameters;
         this.gameOver = false;
         this.previousTimestamp = 0;
-        this.strategy = new RandomAI();
+        this.strategy = new TestNeuralNetAI();
+        // this.strategy = new RandomAI();
 
         this.cave = new Cave(
             parameters.initialRadiuses,
