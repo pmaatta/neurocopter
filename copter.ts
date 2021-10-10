@@ -219,6 +219,7 @@ class Copter {
     pixelOffsetPerMillisecond: number;
     collisionOffsets: number[][];
     trail: CopterTrail;
+    strategy: AIStrategy;
     elapsedTimeScaling: number;
     hitPoint: number[];
     isHuman: boolean;
@@ -233,7 +234,8 @@ class Copter {
         thrust: number, 
         pixelOffsetPerMillisecond: number,
         collisionOffsets: number[][],
-        trail: CopterTrail
+        trail: CopterTrail,
+        strategy: AIStrategy
     ) {
         this.x = x;
         this.y = y;
@@ -246,6 +248,7 @@ class Copter {
         this.giveThrust = false;
         this.dead = false;
         this.trail = trail;
+        this.strategy = strategy;
         this.pixelOffsetPerMillisecond = pixelOffsetPerMillisecond;
         this.collisionOffsets = collisionOffsets;
         this.elapsedTimeScaling = 15;
@@ -793,15 +796,12 @@ class Game {
     copters: Copter[];
     gameOver: boolean;
     previousTimestamp: number;
-    strategy: AIStrategy;
 
     constructor(parameters: GameParameters) {
 
         this.parameters = parameters;
         this.gameOver = false;
         this.previousTimestamp = 0;
-        this.strategy = new TestNeuralNetAI();
-        // this.strategy = new RandomAI();
 
         this.cave = new Cave(
             parameters.initialRadiuses,
@@ -819,6 +819,7 @@ class Game {
         this.copters = [];
 
         for (let i = 0; i < parameters.numCopters; i++) {
+
             const copter = new Copter(
                 parameters.copterX,
                 parameters.copterStartY,
@@ -833,8 +834,10 @@ class Game {
                     parameters.copterTrailLength, 
                     parameters.copterTrailInterval, 
                     parameters.pixelOffsetPerMillisecond
-                )
+                ),
+                new TestNeuralNetAI()
             );
+
             if (i === 0 && parameters.hasHumanPlayer) {
                 copter.addPlayerControls();
             }
@@ -872,9 +875,10 @@ class Game {
     AIStep(): void {
 
         this.copters.forEach(copter => {
+            
             if (copter.dead || copter.isHuman) return;
 
-            const encodedInput = this.strategy.encodeInputData(
+            const encodedInput = copter.strategy.encodeInputData(
                 this.cave.radiuses,
                 this.cave.dys,
                 this.cave.xCoords,
@@ -883,7 +887,7 @@ class Game {
                 copter.ySpeed
             );
 
-            const decision = this.strategy.decision(encodedInput);
+            const decision = copter.strategy.decision(encodedInput);
             if (decision) 
                 copter.thrustOn();
             else
