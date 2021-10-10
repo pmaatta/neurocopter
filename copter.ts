@@ -418,12 +418,16 @@ class MathUtil {
         return result;
     }
 
-    static relu(x: number): number {
-        return Math.max(0, x);
+    static relu(x: number[]): void {
+        for (let i = 0; i < x.length; i++) {
+            x[i] = Math.max(0, x[i]);
+        }
     }
 
-    static sigmoid(x: number): number {
-        return 1 / (1 + Math.exp(-x));
+    static sigmoid(x: number[]): void {
+        for (let i = 0; i < x.length; i++) {
+            x[i] = 1 / (1 + Math.exp(-x[i]))
+        }
     }
 
     static mean(v: number[]): number {
@@ -486,6 +490,29 @@ class MathUtil {
         return (x - min) / (max - min);
     }
 
+    static randomNormal(variance: number): number {
+        const sigma = Math.sqrt(variance);
+        const u1 = 1 - Math.random();
+        const u2 = Math.random();
+        const mag = sigma * Math.sqrt(-2 * Math.log(u1));
+        return mag * Math.cos(2 * Math.PI * u2);
+    }
+
+    static initializeWeightMatrix(m: number, n: number) {
+        if (m < 1 || n < 1) {
+            throw new Error("Invalid dimensions for initialization");
+        }
+        const W: number[][] = [];
+        for (let i = 0; i < m; i++) {
+            const row: number[] = [];
+            for (let j = 0; j < n; j++) {
+                row.push(this.randomNormal(2 / n));
+            }
+            W.push(row);
+        }
+        return W;
+    }
+
     static test_std(): void {
         const v = [1, 2, 6, 8, 8, 8, 25];
         const sd = this.std(v);
@@ -513,10 +540,105 @@ class MathUtil {
         console.assert(equal, "Incorrect vector normalize");
     }
 
+    static test_randomNormal(): void {
+        const sdGen = 2;
+        const rs = [];
+        for (let i = 0; i < 10000; i++) {
+            let r = this.randomNormal(sdGen*sdGen);
+            rs.push(r);
+        }
+        const sd = this.std(rs);
+        console.log({sdGen, sd});
+    }
+
+    static test_initializeWeightMatrix(): void {
+        const inputs = 60;
+        const outputs = 40;
+        const W = this.initializeWeightMatrix(outputs, inputs);
+        const values: number[] = [];
+        W.forEach(row => {
+            row.forEach(value => {
+                values.push(value);
+            });
+        });
+        const sdGen = Math.sqrt(2 / inputs);
+        const sd = this.std(values);
+        console.log({sdGen, sd});
+    }
+
     static test(): void {
         this.test_std();
         this.test_matVecMul();
         this.test_normalize();
+        this.test_randomNormal();
+        this.test_initializeWeightMatrix();
+    }
+}
+
+class NeuralNet {
+
+    weightMatrices: number[][][];
+
+    constructor(layerSizes: number[]) {
+
+        if (layerSizes.length < 2) {
+            throw new Error("Must have at least input and output layer");
+        }
+        if (layerSizes.some(value => value < 1)) {
+            throw new Error("Invalid layer size values");
+        }
+        if (layerSizes[layerSizes.length - 1] !== 1) {
+            throw new Error("Multiple outputs not supported");
+        }
+
+        const weightMatrices: number[][][] = [];
+
+        for (let i = 1; i < layerSizes.length; i++) {
+            const prevLayerSize = layerSizes[i - 1] + 1;
+            const nextLayerSize = layerSizes[i];
+            const W: number[][] = MathUtil.initializeWeightMatrix(
+                nextLayerSize, 
+                prevLayerSize
+            );
+            weightMatrices.push(W);
+        }
+
+        this.weightMatrices = weightMatrices;
+    }
+
+    layerForward(input: number[], i: number): number[] {
+
+        const biasInput = input.concat(1);
+        const W = this.weightMatrices[i];
+        const output = MathUtil.matVecMul(W, biasInput);
+        
+        if (i === this.weightMatrices.length - 1) {
+            MathUtil.sigmoid(output);
+        } else {
+            MathUtil.relu(output);
+        }
+
+        return output;
+    }
+
+    forward(input: number[]): number[] {
+        let x = input;
+        for (let i = 0; i < this.weightMatrices.length; i++) {
+            x = this.layerForward(x, i);
+        }
+        return x;
+    }
+
+    static test_forward(): void {
+        const NN = new NeuralNet([33, 5, 5, 1]);
+        for (let j = 0; j < 1000; j++) {
+            const input = new Array(33);
+            for (let i = 0; i < 33; i++) {
+                input[i] = Math.random();
+            }
+            const output = NN.forward(input);
+            console.assert(Math.abs(output[0]) < 1, "Incorrect output value");
+        }
     }
 }
 
@@ -786,11 +908,11 @@ function main(): void {
     // -- Initialization -- //
 
     // Single player
-    const parameters = new GameParameters();
-    parameters.caveMinRadius = 70;
+    // const parameters = new GameParameters();
+    // parameters.caveMinRadius = 70;
     
     // AI
-    // const parameters = new GameParameters(50, false);
+    const parameters = new GameParameters(50, false);
 
     const game = new Game(parameters);
     
@@ -817,15 +939,3 @@ function main(): void {
 
 
 onDocumentReady(main);
-
-
-// TODO copter max speed params
-// TODO copter image size params for collision
-// TODO difficulty params
-
-// AI Notes
-// rs, dys, xs: index 6-> relevant
-// normalize encoded input!
-// neural net weight initiailzation
-// mathutil assertions, performance
-// z-normalize vs minmax-normalize
