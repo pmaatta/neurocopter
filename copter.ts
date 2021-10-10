@@ -655,7 +655,6 @@ interface AIStrategy {
         rs: number[],
         dys: number[],
         xs: number[],
-        copterX: number,
         copterY: number,
         copterYSpeed: number
     ): number[];
@@ -669,7 +668,6 @@ class RandomAI implements AIStrategy {
         rs: number[],
         dys: number[],
         xs: number[],
-        copterX: number,
         copterY: number,
         copterYSpeed: number
     ): number[] 
@@ -694,7 +692,6 @@ class TestNeuralNetAI implements AIStrategy {
         rs: number[],
         dys: number[],
         xs: number[],
-        copterX: number,
         copterY: number,
         copterYSpeed: number
     ): number[] 
@@ -704,6 +701,54 @@ class TestNeuralNetAI implements AIStrategy {
             data[i] = MathUtil.randomNormal(Math.sqrt(2)) - 1;
         }
         return data;
+    }
+
+    decision(encodedInput: number[]): boolean {
+        const output = this.neuralNet.forward(encodedInput);
+        return output[0] > 0.5;
+    }
+}
+
+class NeuralNetAI implements AIStrategy {
+
+    inputSize: number;
+    lookAheadPointCount: number;
+    neuralNet: NeuralNet;
+    canvasHeight: number;
+    copterMaxYSpeed: number;
+
+    constructor(canvasHeight: number, copterMaxYSpeed: number, lookAheadPointCount: number = 6) {
+        this.canvasHeight = canvasHeight;
+        this.copterMaxYSpeed = copterMaxYSpeed;
+        this.lookAheadPointCount = lookAheadPointCount;
+        this.inputSize = 3 * lookAheadPointCount + 2;
+        this.neuralNet = new NeuralNet([this.inputSize, 5, 5, 1]);
+    }
+    
+    encodeInputData(
+        rs: number[],
+        dys: number[],
+        xs: number[],
+        copterY: number,
+        copterYSpeed: number
+    ): number[] 
+    {
+        const [start, end] = [6, 6 + this.lookAheadPointCount];
+        const rs_ = rs.slice(start, end);
+        const dys_ = dys.slice(start, end);
+        const xs_ = xs.slice(start, end);
+        MathUtil.normalize(rs_);
+        MathUtil.normalize(dys_);
+        MathUtil.normalize(xs_);
+
+        const copterYnorm = MathUtil.normalizeSingle(copterY, 0, this.canvasHeight);
+        const copterYSpeednorm = MathUtil.normalizeSingle(
+            copterYSpeed, 
+            -this.copterMaxYSpeed, 
+            this.copterMaxYSpeed
+        );
+
+        return rs_.concat(dys_).concat(xs_).concat(copterYnorm).concat(copterYSpeednorm);
     }
 
     decision(encodedInput: number[]): boolean {
@@ -835,7 +880,10 @@ class Game {
                     parameters.copterTrailInterval, 
                     parameters.pixelOffsetPerMillisecond
                 ),
-                new TestNeuralNetAI()
+                new NeuralNetAI(
+                    parameters.canvas.height, 
+                    parameters.copterMaxYSpeed
+                )
             );
 
             if (i === 0 && parameters.hasHumanPlayer) {
@@ -882,7 +930,6 @@ class Game {
                 this.cave.radiuses,
                 this.cave.dys,
                 this.cave.xCoords,
-                copter.x,
                 copter.y,
                 copter.ySpeed
             );
