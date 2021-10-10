@@ -434,11 +434,13 @@ class MathUtil {
     }
 
     static mean(v: number[]): number {
-        if (v.length === 0)
+        if (v.length === 0) {
             throw new Error("Cannot take mean of empty vector"); 
+        }
         let sum = 0;
-        for (let i = 0; i < v.length; i++)
+        for (let i = 0; i < v.length; i++) {
             sum += v[i];
+        }
         return sum / v.length;
     }
 
@@ -583,16 +585,13 @@ class NeuralNet {
     weightMatrices: number[][][];
 
     constructor(layerSizes: number[]) {
-
-        if (layerSizes.length < 2) {
+        
+        if (layerSizes.length < 2) 
             throw new Error("Must have at least input and output layer");
-        }
-        if (layerSizes.some(value => value < 1)) {
+        if (layerSizes.some(value => value < 1)) 
             throw new Error("Invalid layer size values");
-        }
-        if (layerSizes[layerSizes.length - 1] !== 1) {
+        if (layerSizes[layerSizes.length - 1] !== 1) 
             throw new Error("Multiple outputs not supported");
-        }
 
         const weightMatrices: number[][][] = [];
 
@@ -605,7 +604,6 @@ class NeuralNet {
             );
             weightMatrices.push(W);
         }
-
         this.weightMatrices = weightMatrices;
     }
 
@@ -620,7 +618,6 @@ class NeuralNet {
         } else {
             MathUtil.relu(output);
         }
-
         return output;
     }
 
@@ -923,7 +920,6 @@ class Game {
     AIStep(): void {
 
         this.copters.forEach(copter => {
-            
             if (copter.dead || copter.isHuman) return;
 
             const encodedInput = copter.strategy.encodeInputData(
@@ -1020,7 +1016,6 @@ function main(): void {
     }
 
     window.requestAnimationFrame(step);
-
 }
 
 
