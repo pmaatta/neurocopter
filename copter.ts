@@ -383,6 +383,176 @@ class CopterTrail {
     }
 }
 
+class MathUtil {
+
+    static zeros(n: number): number[] {
+        const arr = new Array(n);
+        for (let i = 0; i < n; i++) {
+            arr[i] = 0;
+        }
+        return arr;
+    }
+
+    static dot(v1: number[], v2: number[]): number {
+        if (v1.length !== v2.length) {
+            throw new Error("Vectors are not the same length");
+        }
+        let result = 0;
+        for (let i = 0; i < v1.length; i++) {
+            result += v1[i] * v2[i];
+        }
+        return result;
+    }
+
+    static matVecMul(matrix: number[][], vector: number[]): number[] {
+        const m = matrix.length;
+        const n = matrix[0].length;
+        const nv = vector.length;
+        if(n !== nv) {
+            throw new Error("Mismatch in matrix dimensions");
+        }
+        const result = this.zeros(m);
+        for (let i = 0; i < m; i++) {
+            result[i] = this.dot(matrix[i], vector);
+        }
+        return result;
+    }
+
+    static relu(x: number): number {
+        return Math.max(0, x);
+    }
+
+    static sigmoid(x: number): number {
+        return 1 / (1 + Math.exp(-x));
+    }
+
+    static mean(v: number[]): number {
+        if (v.length === 0)
+            throw new Error("Cannot take mean of empty vector"); 
+        let sum = 0;
+        for (let i = 0; i < v.length; i++)
+            sum += v[i];
+        return sum / v.length;
+    }
+
+    static std(v: number[], mean?: number): number {
+        if (mean === undefined) {
+            mean = this.mean(v);
+        }
+        let sumsq = 0;
+        for (let i = 0; i < v.length; i++) {
+            sumsq += Math.pow(v[i] - mean, 2);
+        }
+        return Math.sqrt(sumsq / v.length);
+    }
+
+    static normalize(v: number[]): void {
+        if (v.length < 2) {
+            throw new Error("Cannot normalize vector of length < 2");
+        }
+        const mean = this.mean(v);
+        let sd = this.std(v, mean);
+        if (sd === 0) sd = 1;
+        for (let i = 0; i < v.length; i++) {
+            v[i] = (v[i] - mean) / sd;
+        }
+    }
+
+    static vectorsEqual(v1: number[], v2: number[], almost: boolean = true): boolean {
+        if (v1.length !== v2.length) return false;
+        let equal = true;
+        for (let i = 0; i < v1.length; i++) {
+            if (almost) {
+                if (!this.almostEqual(v1[i], v2[i])) {
+                    equal = false;
+                    break;
+                }
+            } else {
+                if (v1[i] !== v2[i]) {
+                    equal = false;
+                    break;
+                }
+            }
+        }
+        return equal;
+    }
+
+    static almostEqual(x: number, y: number, eps: number = 0.000001): boolean {
+        return Math.abs(x - y) < eps;
+    }
+
+    static normalizeSingle(x: number, min: number, max: number): number {
+        if (min === max) throw new Error("Division by zero");
+        return (x - min) / (max - min);
+    }
+
+    static test_std(): void {
+        const v = [1, 2, 6, 8, 8, 8, 25];
+        const sd = this.std(v);
+        const correct = 7.342912729083656;
+        console.log({sd, correct});
+        console.assert(sd === correct, "Incorrect SD value");
+    }
+
+    static test_matVecMul(): void {
+        const M = [[1,23,5], [8,9,10], [-5,-0.2,0.8], [3,4,20]];
+        const v = [10, 20, -5];
+        const w = this.matVecMul(M, v);
+        const correct = [445., 210., -58.,  10.];
+        const equal = this.vectorsEqual(w, correct);
+        console.log({w, correct});
+        console.assert(equal, "Incorrect matrix vector multiply");
+    }
+
+    static test_normalize(): void {
+        const v = [10, 2, 6, 8, -4, -0.75, 13];
+        this.normalize(v);
+        const correct = [0.90691797, -0.51370878, 0.19660459, 0.55176128, -1.57917884, -1.00204922, 1.439653];
+        const equal = this.vectorsEqual(v, correct);
+        console.log({v, correct});
+        console.assert(equal, "Incorrect vector normalize");
+    }
+
+    static test(): void {
+        this.test_std();
+        this.test_matVecMul();
+        this.test_normalize();
+    }
+}
+
+interface AIStrategy {
+
+    encodeInputData(
+        rs: number[],
+        dys: number[],
+        xs: number[],
+        copterX: number,
+        copterY: number,
+        copterYSpeed: number
+    ): number[];
+
+    decision(encodedInput: number[]): boolean;
+}
+
+class RandomAI implements AIStrategy {
+    
+    encodeInputData(
+        rs: number[],
+        dys: number[],
+        xs: number[],
+        copterX: number,
+        copterY: number,
+        copterYSpeed: number
+    ): number[] 
+    {
+        return [];
+    }
+
+    decision(encodedInput: number[]): boolean {
+        return Math.random() < 0.2;
+    }
+}
+
 class GameParameters {
 
     numCopters: number;
@@ -428,7 +598,7 @@ class GameParameters {
         copterStartY: number = 300, 
         copterStartYSpeed: number = 0,
         copterMaxYSpeed: number = 5,
-        copterCollisionOffsets: number[][] = [[-1, -4], [0, -30], [-52, -30], [-63, -23], [-44, -3]],
+        copterCollisionOffsets: number[][] = [[-1, -4], [0, -26], [-52, -26], [-63, -23], [-44, -3]],
         copterThrust: number = 1.6, 
         copterTrailLength: number = 11, 
         copterTrailInterval: number = 10
@@ -457,39 +627,6 @@ class GameParameters {
         this.copterThrust = copterThrust;
         this.copterTrailLength = copterTrailLength;
         this.copterTrailInterval = copterTrailInterval;
-    }
-}
-
-interface AIStrategy {
-
-    encodeInputData(
-        rs: number[],
-        dys: number[],
-        xs: number[],
-        copterX: number,
-        copterY: number,
-        copterYSpeed: number
-    ): number[];
-
-    decision(encodedInput: number[]): boolean;
-}
-
-class RandomAI implements AIStrategy {
-    
-    encodeInputData(
-        rs: number[],
-        dys: number[],
-        xs: number[],
-        copterX: number,
-        copterY: number,
-        copterYSpeed: number
-    ): number[] 
-    {
-        return [];
-    }
-
-    decision(encodedInput: number[]): boolean {
-        return Math.random() < 0.2;
     }
 }
 
@@ -690,3 +827,5 @@ onDocumentReady(main);
 // rs, dys, xs: index 6-> relevant
 // normalize encoded input!
 // neural net weight initiailzation
+// mathutil assertions, performance
+// z-normalize vs minmax-normalize
