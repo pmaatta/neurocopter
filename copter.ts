@@ -829,6 +829,12 @@ class GameParameters {
     }
 }
 
+enum MenuState {
+    WaitingForInput,
+    PlayerButtonClicked,
+    AIButtonClicked
+}
+
 class Menu {
 
     offsetX: number;
@@ -837,8 +843,7 @@ class Menu {
     buttonOffsetsY: number[];
     canvas: HTMLCanvasElement;
     menuImage: HTMLImageElement;
-    active: boolean;
-    buttonClicked: "player" | "ai" | "none";
+    state: MenuState;
 
     constructor(
         canvas: HTMLCanvasElement = document.querySelector("canvas")!, 
@@ -854,8 +859,7 @@ class Menu {
         this.buttonOffsetsY = buttonOffsetsY;
         this.canvas = canvas;
         this.menuImage = menuImage;
-        this.active = true;
-        this.buttonClicked = "none";
+        this.state = MenuState.WaitingForInput;
         
         const self = this;
         canvas.addEventListener("click", function(event) {
@@ -864,11 +868,19 @@ class Menu {
     }
 
     onButtonClicked(event: MouseEvent): void {
-        if (!this.active) return;
+        if (this.state !== MenuState.WaitingForInput) {
+            return;
+        }
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-        this.buttonClicked = this.whichButtonClicked(x, y);
+        const button = this.whichButtonClicked(x, y);
+        
+        if (button === "player") {
+            this.state = MenuState.PlayerButtonClicked;
+        } else if (button === "ai") {
+            this.state = MenuState.AIButtonClicked;
+        }
     }
 
     whichButtonClicked(x: number, y: number): "player" | "ai" | "none" {
@@ -885,7 +897,7 @@ class Menu {
     }
 
     draw(): void {
-        if (!this.active) return;
+        if (this.state !== MenuState.WaitingForInput) return;
         const ctx = this.canvas.getContext("2d")!;
         ctx.drawImage(this.menuImage, this.offsetX, this.offsetY);
     }
@@ -1050,16 +1062,15 @@ class GlobalEventHandler {
 
             else if (this.gameState === GameState.InMenu) {
                 
-                if (this.menu.buttonClicked === "none") {
+                if (this.menu.state === MenuState.WaitingForInput) {
                     this.menu.draw();
                 }
-        
-                else if (this.menu.buttonClicked === "player") {
+                else if (this.menu.state === MenuState.PlayerButtonClicked) {
                     this.gameState = GameState.InGame;
                     this.game = new Game(new GameParameters());
                     this.game.start();
                 }
-                else if (this.menu.buttonClicked === "ai") {
+                else if (this.menu.state === MenuState.AIButtonClicked) {
                     this.gameState = GameState.InGame;
                     this.game = new Game(new GameParameters(50, false));
                     this.game.start();
