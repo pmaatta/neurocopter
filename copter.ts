@@ -325,11 +325,11 @@ class Copter {
 
         this.trail.draw(canvas, this.dead);
         this.drawCopterImage(canvas);
-        drawDistanceText(canvas, this.distance, i);
+        Utils.drawDistanceText(canvas, this.distance, i);
 
         if (this.dead) {
             const [x, y] = this.hitPoint;
-            drawCircle(canvas, x, y, "red");
+            Utils.drawCircle(canvas, x, y, "red");
         } 
     }
 }
@@ -380,7 +380,7 @@ class CopterTrail {
             const alpha = 0.6 * (i / (iMax - iMin));
             const color = "rgba(255, 136, 0," + alpha + ")";
             const radius = 7 * (i / (iMax - iMin));
-            drawCircle(canvas, x, y, color, radius);
+            Utils.drawCircle(canvas, x, y, color, radius);
         }
     }
 }
@@ -997,7 +997,7 @@ class Game {
     }
 
     step(elapsedTime: number): void {
-        clearCanvas(this.parameters.canvas);
+        Utils.clearCanvas(this.parameters.canvas);
         this.AIStep();
         this.caveStep(elapsedTime);
         this.copterStep(elapsedTime);
@@ -1044,7 +1044,7 @@ class GlobalEventHandler {
 
     start(pollingInterval: number = 20) {
         
-        const intervalID = setInterval(() => {
+        setInterval(() => {
 
             if (this.gameState === GameState.InGame) {}
 
@@ -1070,42 +1070,45 @@ class GlobalEventHandler {
     }
 }
 
-function drawCircle(canvas: HTMLCanvasElement, x: number, y: number, color: string, radius: number = 5): void {
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2*Math.PI);
-    ctx.fill();
-}
+class Utils {
 
-function clearCanvas(canvas: HTMLCanvasElement): void {
-    const ctx = canvas.getContext("2d")!;
-    const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-    gradient.addColorStop(0, "hsl(199, 100%, 50%)");
-    gradient.addColorStop(0.5, "hsl(199, 100%, 90%)");
-    gradient.addColorStop(1, "hsl(285, 100%, 80%)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-function drawDistanceText(canvas: HTMLCanvasElement, distance: number, i: number): void {
-    const text = "Distance: " + Math.floor(distance);
-    const y = 30 + 25*i;
-    const ctx = canvas.getContext("2d")!;
-    ctx.font = "bold 22px sans-serif";
-    ctx.fillStyle = "white";
-    ctx.strokeStyle = "black";
-    ctx.fillText(text, 30, y);
-    ctx.strokeText(text, 30, y);
-}
-
-function onDocumentReady(callback: () => void): void {
-    if (document.readyState === "complete" || document.readyState === "interactive") {
-        setTimeout(callback, 1);
-    } else {
-        document.addEventListener("DOMContentLoaded", callback);
+    static drawCircle(canvas: HTMLCanvasElement, x: number, y: number, color: string, radius: number = 5): void {
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2*Math.PI);
+        ctx.fill();
     }
-} 
+    
+    static clearCanvas(canvas: HTMLCanvasElement): void {
+        const ctx = canvas.getContext("2d")!;
+        const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+        gradient.addColorStop(0, "hsl(199, 100%, 50%)");
+        gradient.addColorStop(0.5, "hsl(199, 100%, 90%)");
+        gradient.addColorStop(1, "hsl(285, 100%, 80%)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    static drawDistanceText(canvas: HTMLCanvasElement, distance: number, i: number): void {
+        const text = "Distance: " + Math.floor(distance);
+        const y = 30 + 25*i;
+        const ctx = canvas.getContext("2d")!;
+        ctx.font = "bold 22px sans-serif";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.fillText(text, 30, y);
+        ctx.strokeText(text, 30, y);
+    }
+    
+    static onDocumentReady(callback: () => void): void {
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            setTimeout(callback, 1);
+        } else {
+            document.addEventListener("DOMContentLoaded", callback);
+        }
+    } 
+}
 
 
 function main(): void {
@@ -1113,4 +1116,4 @@ function main(): void {
     handler.start();
 }
 
-onDocumentReady(main);
+Utils.onDocumentReady(main);
