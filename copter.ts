@@ -839,7 +839,6 @@ class Menu {
     menuImage: HTMLImageElement;
     active: boolean;
     buttonClicked: "player" | "ai" | "none";
-    imageLoaded: boolean;
 
     constructor(
         canvas: HTMLCanvasElement = document.querySelector("canvas")!, 
@@ -854,20 +853,11 @@ class Menu {
         this.buttonOffsetsX = buttonOffsetsX;
         this.buttonOffsetsY = buttonOffsetsY;
         this.canvas = canvas;
+        this.menuImage = menuImage;
         this.active = true;
         this.buttonClicked = "none";
-        this.imageLoaded = false;
         
         const self = this;
-        
-        const img = new Image();
-        img.onload = function() {
-            self.imageLoaded = true;
-            self.draw();
-        }
-        img.src = "menu_full.png";
-        this.menuImage = img;
-
         canvas.addEventListener("click", function(event) {
             self.onButtonClicked(event);
         });
@@ -1057,16 +1047,23 @@ class GlobalEventHandler {
         const intervalID = setInterval(() => {
 
             if (this.gameState === GameState.InGame) {}
-    
-            else if (this.menu.buttonClicked === "player") {
-                this.gameState = GameState.InGame;
-                this.game = new Game(new GameParameters());
-                this.game.start();
-            }
-            else if (this.menu.buttonClicked === "ai") {
-                this.gameState = GameState.InGame;
-                this.game = new Game(new GameParameters(50, false));
-                this.game.start();
+
+            else if (this.gameState === GameState.InMenu) {
+                
+                if (this.menu.buttonClicked === "none") {
+                    this.menu.draw();
+                }
+        
+                else if (this.menu.buttonClicked === "player") {
+                    this.gameState = GameState.InGame;
+                    this.game = new Game(new GameParameters());
+                    this.game.start();
+                }
+                else if (this.menu.buttonClicked === "ai") {
+                    this.gameState = GameState.InGame;
+                    this.game = new Game(new GameParameters(50, false));
+                    this.game.start();
+                }
             }
 
         }, pollingInterval);
