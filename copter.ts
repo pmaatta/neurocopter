@@ -187,7 +187,6 @@ class Cave {
     }
 
     draw(canvas: HTMLCanvasElement): void {
-
         const hue = 191;
         const saturation = 100;
         const lightnesses = [39, 37, 34, 30, 27, 25, 22, 20];
@@ -317,7 +316,7 @@ class Copter {
     }
 
     drawCopterImage(canvas: HTMLCanvasElement): void {
-        const imgElem = document.querySelector("img")!;
+        const imgElem = <HTMLImageElement>document.querySelector(".copter")!;
         const ctx = canvas.getContext("2d")!;
         ctx.drawImage(imgElem, this.x - 65, this.y - 28);
     }
@@ -503,7 +502,7 @@ class MathUtil {
         return mag * Math.cos(2 * Math.PI * u2);
     }
 
-    static initializeWeightMatrix(m: number, n: number) {
+    static initializeWeightMatrix(m: number, n: number): number[][] {
         if (m < 1 || n < 1) {
             throw new Error("Invalid dimensions for initialization");
         }
@@ -608,7 +607,6 @@ class NeuralNet {
     }
 
     layerForward(input: number[], i: number): number[] {
-
         const biasInput = input.concat(1);
         const W = this.weightMatrices[i];
         const output = MathUtil.matVecMul(W, biasInput);
@@ -786,7 +784,7 @@ class GameParameters {
         canvas: HTMLCanvasElement = document.querySelector("canvas")!,
         pixelOffsetPerMillisecond: number = 0.5, 
         
-        caveMinRadius: number = 200,  // 70
+        caveMinRadius: number = 70,  // 200
         caveRadiusVariation: number = 80,
         caveDyVariation: number = 160,
         caveXSpacing: number = 100,
@@ -831,6 +829,78 @@ class GameParameters {
     }
 }
 
+class Menu {
+
+    offsetX: number;
+    offsetY: number;
+    buttonOffsetsX: number[];
+    buttonOffsetsY: number[];
+    canvas: HTMLCanvasElement;
+    menuImage: HTMLImageElement;
+    active: boolean;
+    buttonClicked: "player" | "ai" | "none";
+    imageLoaded: boolean;
+
+    constructor(
+        canvas: HTMLCanvasElement = document.querySelector("canvas")!, 
+        menuImage: HTMLImageElement = <HTMLImageElement>document.querySelector(".menu")!, 
+        offsetX: number = 0, 
+        offsetY: number = 0, 
+        buttonOffsetsX: number[] = [507, 694], 
+        buttonOffsetsY: number[] = [345, 402, 417, 474]
+    ) {
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        this.buttonOffsetsX = buttonOffsetsX;
+        this.buttonOffsetsY = buttonOffsetsY;
+        this.canvas = canvas;
+        this.active = true;
+        this.buttonClicked = "none";
+        this.imageLoaded = false;
+        
+        const self = this;
+        
+        const img = new Image();
+        img.onload = function() {
+            self.imageLoaded = true;
+            self.draw();
+        }
+        img.src = "menu_full.png";
+        this.menuImage = img;
+
+        canvas.addEventListener("click", function(event) {
+            self.onButtonClicked(event);
+        });
+    }
+
+    onButtonClicked(event: MouseEvent): void {
+        if (!this.active) return;
+        const rect = this.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        this.buttonClicked = this.whichButtonClicked(x, y);
+    }
+
+    whichButtonClicked(x: number, y: number): "player" | "ai" | "none" {
+        const [xMin, xMax] = this.buttonOffsetsX.map(v => v + this.offsetX);
+        const [yMinPlayer, yMaxPlayer, yMinAI, yMaxAI] = this.buttonOffsetsY.map(v => v + this.offsetY);
+
+        if (x < xMin || x > xMax) 
+            return "none";
+        if (y >= yMinPlayer && y <= yMaxPlayer) 
+            return "player";
+        if (y >= yMinAI && y <= yMaxAI) 
+            return "ai";
+        return "none";
+    }
+
+    draw(): void {
+        if (!this.active) return;
+        const ctx = this.canvas.getContext("2d")!;
+        ctx.drawImage(this.menuImage, this.offsetX, this.offsetY);
+    }
+}
+
 class Game {
 
     parameters: GameParameters;
@@ -840,7 +910,6 @@ class Game {
     previousTimestamp: number;
 
     constructor(parameters: GameParameters) {
-
         this.parameters = parameters;
         this.gameOver = false;
         this.previousTimestamp = 0;
@@ -918,7 +987,6 @@ class Game {
     }
 
     AIStep(): void {
-
         this.copters.forEach(copter => {
             if (copter.dead || copter.isHuman) return;
 
@@ -944,6 +1012,64 @@ class Game {
         this.caveStep(elapsedTime);
         this.copterStep(elapsedTime);
         this.gameOver = this.copters.every(copter => copter.dead);
+    }
+
+    start(): void {
+        const self = this;
+
+        function frame(timestamp: number) {
+            if (self.previousTimestamp === 0) { 
+                self.previousTimestamp = timestamp; 
+            }
+        
+            const elapsedTime = timestamp - self.previousTimestamp;
+            self.previousTimestamp = timestamp;
+    
+            self.step(elapsedTime);
+            if (self.gameOver) return; 
+    
+            window.requestAnimationFrame(frame);
+        }
+
+        window.requestAnimationFrame(frame);
+    }
+}
+
+enum GameState {
+    InMenu,
+    InGame,
+    GameOver
+}
+
+class GlobalEventHandler {
+
+    menu: Menu;
+    game: Game | undefined;
+    gameState: GameState;
+
+    constructor() {
+        this.menu = new Menu();
+        this.gameState = GameState.InMenu;
+    }
+
+    start(pollingInterval: number = 20) {
+        
+        const intervalID = setInterval(() => {
+
+            if (this.gameState === GameState.InGame) {}
+    
+            else if (this.menu.buttonClicked === "player") {
+                this.gameState = GameState.InGame;
+                this.game = new Game(new GameParameters());
+                this.game.start();
+            }
+            else if (this.menu.buttonClicked === "ai") {
+                this.gameState = GameState.InGame;
+                this.game = new Game(new GameParameters(50, false));
+                this.game.start();
+            }
+
+        }, pollingInterval);
     }
 }
 
@@ -986,37 +1112,8 @@ function onDocumentReady(callback: () => void): void {
 
 
 function main(): void {
-
-    // -- Initialization -- //
-
-    // Single player
-    // const parameters = new GameParameters();
-    // parameters.caveMinRadius = 70;
-    
-    // AI
-    const parameters = new GameParameters(50, false);
-
-    const game = new Game(parameters);
-    
-
-    // -- Game loop -- //
-
-    function step(timestamp: number) {
-        if (game.previousTimestamp === 0) { 
-            game.previousTimestamp = timestamp; 
-        }
-        
-        const elapsedTime = timestamp - game.previousTimestamp;
-        game.previousTimestamp = timestamp;
-
-        game.step(elapsedTime);
-        if (game.gameOver) return; 
-
-        window.requestAnimationFrame(step);
-    }
-
-    window.requestAnimationFrame(step);
+    const handler = new GlobalEventHandler();
+    handler.start();
 }
-
 
 onDocumentReady(main);
