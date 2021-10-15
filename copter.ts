@@ -830,6 +830,7 @@ class GameParameters {
 }
 
 enum MenuState {
+    Inactive,
     WaitingForInput,
     PlayerButtonClicked,
     AIButtonClicked
@@ -846,12 +847,12 @@ class Menu {
     state: MenuState;
 
     constructor(
-        canvas: HTMLCanvasElement = document.querySelector("canvas")!, 
         menuImage: HTMLImageElement = <HTMLImageElement>document.querySelector(".menu")!, 
         offsetX: number = 0, 
         offsetY: number = 0, 
         buttonOffsetsX: number[] = [507, 694], 
-        buttonOffsetsY: number[] = [345, 402, 417, 474]
+        buttonOffsetsY: number[] = [345, 402, 417, 474],
+        canvas: HTMLCanvasElement = document.querySelector("canvas")!
     ) {
         this.offsetX = offsetX;
         this.offsetY = offsetY;
@@ -865,6 +866,19 @@ class Menu {
         canvas.addEventListener("click", function(event) {
             self.onButtonClicked(event);
         });
+    }
+
+    whichButtonClicked(x: number, y: number): string {
+        const [xMin, xMax] = this.buttonOffsetsX.map(v => v + this.offsetX);
+        const [yMinPlayer, yMaxPlayer, yMinAI, yMaxAI] = this.buttonOffsetsY.map(v => v + this.offsetY);
+
+        if (x < xMin || x > xMax) 
+            return "none";
+        if (y >= yMinPlayer && y <= yMaxPlayer) 
+            return "player";
+        if (y >= yMinAI && y <= yMaxAI) 
+            return "ai";
+        return "none";
     }
 
     onButtonClicked(event: MouseEvent): void {
@@ -883,23 +897,47 @@ class Menu {
         }
     }
 
-    whichButtonClicked(x: number, y: number): "player" | "ai" | "none" {
-        const [xMin, xMax] = this.buttonOffsetsX.map(v => v + this.offsetX);
-        const [yMinPlayer, yMaxPlayer, yMinAI, yMaxAI] = this.buttonOffsetsY.map(v => v + this.offsetY);
-
-        if (x < xMin || x > xMax) 
-            return "none";
-        if (y >= yMinPlayer && y <= yMaxPlayer) 
-            return "player";
-        if (y >= yMinAI && y <= yMaxAI) 
-            return "ai";
-        return "none";
-    }
-
     draw(): void {
         if (this.state !== MenuState.WaitingForInput) return;
         const ctx = this.canvas.getContext("2d")!;
         ctx.drawImage(this.menuImage, this.offsetX, this.offsetY);
+    }
+}
+
+class GameOverMenu extends Menu {
+
+    constructor(
+        menuImage: HTMLImageElement = <HTMLImageElement>document.querySelector(".gameover")!,
+        offsetX: number = 390, 
+        offsetY: number = 250, 
+        buttonOffsetsX: number[] = [109, 313], 
+        buttonOffsetsY: number[] = [96, 154]
+    ) {
+        super(menuImage, offsetX, offsetY, buttonOffsetsX, buttonOffsetsY);
+        this.state = MenuState.Inactive;
+    }
+
+    whichButtonClicked(x: number, y: number): string {
+        const [xMin, xMax] = this.buttonOffsetsX.map(v => v + this.offsetX);
+        const [yMin, yMax] = this.buttonOffsetsY.map(v => v + this.offsetY);
+
+        if (x >= xMin && x <= xMax && y >= yMin && y <= yMax) 
+            return "continue";
+        return "none";
+    }
+
+    onButtonClicked(event: MouseEvent): void {
+        if (this.state !== MenuState.WaitingForInput) {
+            return;
+        }
+        const rect = this.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const button = this.whichButtonClicked(x, y);
+        
+        if (button === "continue") {
+            this.state = MenuState.PlayerButtonClicked;
+        } 
     }
 }
 
@@ -1009,7 +1047,7 @@ class Game {
     }
 
     step(elapsedTime: number): void {
-        Utils.clearCanvas(this.parameters.canvas);
+        Utils.drawSky(this.parameters.canvas);
         this.AIStep();
         this.caveStep(elapsedTime);
         this.copterStep(elapsedTime);
@@ -1040,41 +1078,85 @@ class Game {
 enum GameState {
     InMenu,
     InGame,
-    GameOver
+    GameOverPlayer,
+    GameOverAI
 }
 
 class GlobalEventHandler {
 
     menu: Menu;
-    game: Game | undefined;
+    gameOverMenu: GameOverMenu;
+    game: Game;
     gameState: GameState;
 
     constructor() {
         this.menu = new Menu();
+        this.gameOverMenu = new GameOverMenu();
+        this.game = new Game(new GameParameters());
         this.gameState = GameState.InMenu;
     }
 
     start(pollingInterval: number = 20) {
-        
+
         setInterval(() => {
 
-            if (this.gameState === GameState.InGame) {}
+            switch (this.gameState) {
 
-            else if (this.gameState === GameState.InMenu) {
-                
-                if (this.menu.state === MenuState.WaitingForInput) {
-                    this.menu.draw();
-                }
-                else if (this.menu.state === MenuState.PlayerButtonClicked) {
-                    this.gameState = GameState.InGame;
-                    this.game = new Game(new GameParameters());
-                    this.game.start();
-                }
-                else if (this.menu.state === MenuState.AIButtonClicked) {
-                    this.gameState = GameState.InGame;
-                    this.game = new Game(new GameParameters(50, false));
-                    this.game.start();
-                }
+                case GameState.InMenu:
+
+                    switch (this.menu.state) {
+
+                        case MenuState.WaitingForInput:
+                            this.menu.draw();
+                            break;
+
+                        case MenuState.PlayerButtonClicked:
+                            this.game = new Game(new GameParameters());
+                            this.menu.state = MenuState.Inactive;
+                            this.gameState = GameState.InGame;
+                            this.game.start();
+                            break;
+                            
+                        case MenuState.AIButtonClicked:
+                            this.game = new Game(new GameParameters(50, false));
+                            this.menu.state = MenuState.Inactive;
+                            this.gameState = GameState.InGame;
+                            this.game.start();
+                            break;
+                    }
+                    break;
+
+                case GameState.InGame:
+                    
+                    if (this.game.gameOver) {
+                        if (this.game.parameters.hasHumanPlayer) {
+                            this.gameState = GameState.GameOverPlayer;
+                            this.gameOverMenu.state = MenuState.WaitingForInput;
+                        } 
+                        else {
+                            this.gameState = GameState.GameOverAI;
+                        }
+                    }
+                    break;
+
+                case GameState.GameOverPlayer:
+                    
+                    switch (this.gameOverMenu.state) {
+                        
+                        case MenuState.WaitingForInput:
+                            this.gameOverMenu.draw();
+                            break;
+                        
+                        case MenuState.PlayerButtonClicked:
+                            this.gameOverMenu.state = MenuState.Inactive;
+                            this.menu.state = MenuState.WaitingForInput;
+                            this.gameState = GameState.InMenu;
+                            break;
+                    }
+                    break;
+
+                case GameState.GameOverAI:
+                    break;
             }
 
         }, pollingInterval);
@@ -1091,7 +1173,7 @@ class Utils {
         ctx.fill();
     }
     
-    static clearCanvas(canvas: HTMLCanvasElement): void {
+    static drawSky(canvas: HTMLCanvasElement): void {
         const ctx = canvas.getContext("2d")!;
         const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
         gradient.addColorStop(0, "hsl(199, 100%, 50%)");
