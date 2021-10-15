@@ -945,6 +945,14 @@ class Menu {
         });
     }
 
+    activate(): void {
+        this.state = MenuState.WaitingForInput;
+    }
+
+    deactivate(): void {
+        this.state = MenuState.Inactive;
+    }
+
     whichButtonClicked(x: number, y: number): string {
         const [xMin, xMax] = this.buttonOffsetsX.map(v => v + this.offsetX);
         const [yMinPlayer, yMaxPlayer, yMinAI, yMaxAI] = this.buttonOffsetsY.map(v => v + this.offsetY);
@@ -1173,70 +1181,74 @@ class GlobalEventHandler {
         this.gameState = GameState.InMenu;
     }
 
-    start(pollingInterval: number = 20) {
+    observeState(): void {
 
-        setInterval(() => {
+        switch (this.gameState) {
 
-            switch (this.gameState) {
+            case GameState.InMenu:
 
-                case GameState.InMenu:
+                switch (this.menu.state) {
 
-                    switch (this.menu.state) {
+                    case MenuState.WaitingForInput:
+                        this.menu.draw();
+                        break;
 
-                        case MenuState.WaitingForInput:
-                            this.menu.draw();
-                            break;
-
-                        case MenuState.PlayerButtonClicked:
-                            this.game = new Game(new GameParameters());
-                            this.menu.state = MenuState.Inactive;
-                            this.gameState = GameState.InGame;
-                            this.game.start();
-                            break;
-                            
-                        case MenuState.AIButtonClicked:
-                            this.game = new Game(new GameParameters(50, false));
-                            this.menu.state = MenuState.Inactive;
-                            this.gameState = GameState.InGame;
-                            this.game.start();
-                            break;
-                    }
-                    break;
-
-                case GameState.InGame:
-                    
-                    if (this.game.gameOver) {
-                        if (this.game.parameters.hasHumanPlayer) {
-                            this.gameState = GameState.GameOverPlayer;
-                            this.gameOverMenu.state = MenuState.WaitingForInput;
-                        } 
-                        else {
-                            this.gameState = GameState.GameOverAI;
-                        }
-                    }
-                    break;
-
-                case GameState.GameOverPlayer:
-                    
-                    switch (this.gameOverMenu.state) {
+                    case MenuState.PlayerButtonClicked:
+                        this.game = new Game(new GameParameters());
+                        this.gameState = GameState.InGame;
+                        this.menu.deactivate();
+                        this.game.start();
+                        break;
                         
-                        case MenuState.WaitingForInput:
-                            this.gameOverMenu.draw();
-                            break;
-                        
-                        case MenuState.PlayerButtonClicked:
-                            this.gameOverMenu.state = MenuState.Inactive;
-                            this.menu.state = MenuState.WaitingForInput;
-                            this.gameState = GameState.InMenu;
-                            break;
+                    case MenuState.AIButtonClicked:
+                        this.game = new Game(new GameParameters(50, false));
+                        this.gameState = GameState.InGame;
+                        this.menu.deactivate();
+                        this.game.start();
+                        break;
+                }
+                break;
+
+            case GameState.InGame:
+                
+                if (this.game.gameOver) {
+                    if (this.game.parameters.hasHumanPlayer) {
+                        this.gameState = GameState.GameOverPlayer;
+                        this.gameOverMenu.activate();
+                    } 
+                    else {
+                        this.gameState = GameState.GameOverAI;
                     }
-                    break;
+                }
+                break;
 
-                case GameState.GameOverAI:
-                    break;
-            }
+            case GameState.GameOverPlayer:
+                
+                switch (this.gameOverMenu.state) {
+                    
+                    case MenuState.WaitingForInput:
+                        this.gameOverMenu.draw();
+                        break;
+                    
+                    case MenuState.PlayerButtonClicked:
+                        this.gameState = GameState.InMenu;
+                        this.gameOverMenu.deactivate();
+                        this.menu.activate();
+                        break;
+                }
+                break;
 
-        }, pollingInterval);
+            case GameState.GameOverAI:
+                this.game = new Game(new GameParameters(50, false));
+                this.gameState = GameState.InGame;
+                this.game.start();
+                break;
+        }
+    }
+
+    start(interval: number = 20) {
+        const observe = this.observeState.bind(this);
+        setInterval(observe, interval);
     }
 }
 
