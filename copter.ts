@@ -517,6 +517,51 @@ class MathUtil {
         return W;
     }
 
+    static unravelMatrices(matrices: number[][][]): number[] {
+        const output: number[] = [];
+        matrices.forEach(matrix => {
+            matrix.forEach(row => {
+                row.forEach(value => {
+                    output.push(value);
+                });
+            });
+        });
+        return output;
+    }
+
+    static ravelMatrices(values: number[], matrixShapes: number[][]): number[][][] {
+
+        let numValues = 0;
+        matrixShapes.forEach(shape => { 
+            numValues += shape[0] * shape[1];
+        });
+        if (values.length !== numValues)
+            throw new Error("Mismatch in matrix shapes and values");
+
+        const output: number[][][] = [];
+        let totalValuesAdded = 0;
+
+        matrixShapes.forEach(shape => {
+            
+            const matrix: number[][] = [];
+            const [rows, cols] = shape;
+            
+            for (let i = 0; i < rows; i++) {
+                const row: number[] = [];
+                for (let j = 0; j < cols; j++) {
+                    const index = j + cols*i + totalValuesAdded;
+                    row.push(values[index]);
+                }
+                matrix.push(row);
+            }
+
+            totalValuesAdded += rows * cols;
+            output.push(matrix);
+        });
+
+        return output;
+    }
+
     static test_std(): void {
         const v = [1, 2, 6, 8, 8, 8, 25];
         const sd = this.std(v);
@@ -570,12 +615,44 @@ class MathUtil {
         console.log({sdGen, sd});
     }
 
+    static test_ravelUnravel(): void {
+
+        const matrices: number[][][] = [
+            [[0.52540465, 0.52550628, 0.57995175, 0.39320161],
+             [0.92677834, 0.34853278, 0.9255759 , 0.40435024],
+             [0.18262406, 0.63617373, 0.69298744, 0.52117757]], 
+            [[0.66688521, 0.45066789, 0.76069479, 0.8388773 , 0.30735372],
+             [0.02083361, 0.26826952, 0.07021863, 0.54879963, 0.67641893]], 
+            [[0.50742694, 0.83716002],
+             [0.7824754 , 0.29350039],
+             [0.89725938, 0.68588662]]
+        ];
+        const matrixShapes: number[][] = [[3,4], [2,5], [3,2]];
+
+        const unraveled: number[] = this.unravelMatrices(matrices);
+        const raveled: number[][][] = this.ravelMatrices(unraveled, matrixShapes);
+
+        let equal = true;
+        for (let m = 0; m < 3; m++) {
+            for (let row = 0; row < matrixShapes[m][0]; row++) {
+                for (let col = 0; col < matrixShapes[m][1]; col++) {
+                    if (matrices[m][row][col] !== raveled[m][row][col]) {
+                        equal = false;
+                        break;
+                    }
+                }
+            }
+        }
+        console.assert(equal, "Incorrect unraveling or raveling");
+    }
+
     static test(): void {
         this.test_std();
         this.test_matVecMul();
         this.test_normalize();
         this.test_randomNormal();
         this.test_initializeWeightMatrix();
+        this.test_ravelUnravel();
     }
 }
 
