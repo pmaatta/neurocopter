@@ -517,6 +517,45 @@ class MathUtil {
         return W;
     }
 
+    static layersToMatrixShapes(layerSizes: number[]): number[][] {
+        const output: number[][] = [];
+        for (let i = 1; i < layerSizes.length; i++) {
+            const n = layerSizes[i];
+            const m = layerSizes[i - 1] + 1;
+            output.push([n, m]);
+        }
+        return output;
+    }
+
+    static checkMatrixShapes(matrices: number[][][]): boolean {
+        let valid = true;
+        for (let i = 1; i < matrices.length; i++) {
+            const prevMatrix = matrices[i - 1];
+            const nextMatrix = matrices[i];
+            const [prevRows, prevCols] = [prevMatrix.length, prevMatrix[0].length];
+            const [nextRows, nextCols] = [nextMatrix.length, nextMatrix[0].length];
+            if (prevRows + 1 !== nextCols) 
+                valid = false;
+        }
+        return valid;
+    }
+
+    static matricesToLayerSizes(matrices: number[][][]): number[] {
+        if (!this.checkMatrixShapes(matrices)) 
+            throw new Error("Incorrect matrix shapes");
+
+        const layerSizes: number[] = [];
+
+        for (let i = 0; i < matrices.length; i++) {
+            const matrix = matrices[i];
+            const [rows, cols] = [matrix.length, matrix[0].length];
+            layerSizes.push(cols - 1);
+            if (i === matrices.length - 1)
+                layerSizes.push(rows);
+        }
+        return layerSizes;
+    }
+
     static unravelMatrices(matrices: number[][][]): number[] {
         const output: number[] = [];
         matrices.forEach(matrix => {
@@ -646,6 +685,13 @@ class MathUtil {
         console.assert(equal, "Incorrect unraveling or raveling");
     }
 
+    static test_matricesToLayerSizes(): void {
+        const NN = new NeuralNet([20, 5, 5, 1]);
+        const layers = this.matricesToLayerSizes(NN.weightMatrices);
+        const equal = this.vectorsEqual(layers, NN.layerSizes);
+        console.assert(equal, "Incorrect conversion from weight matrices to layer sizes");
+    }
+
     static test(): void {
         this.test_std();
         this.test_matVecMul();
@@ -653,12 +699,14 @@ class MathUtil {
         this.test_randomNormal();
         this.test_initializeWeightMatrix();
         this.test_ravelUnravel();
+        this.test_matricesToLayerSizes();
     }
 }
 
 class NeuralNet {
 
     weightMatrices: number[][][];
+    layerSizes: number[];
 
     constructor(layerSizes: number[]) {
         
@@ -681,6 +729,16 @@ class NeuralNet {
             weightMatrices.push(W);
         }
         this.weightMatrices = weightMatrices;
+        this.layerSizes = layerSizes;
+    }
+
+    static fromWeightMatrices(weights: number[][][]): NeuralNet {
+        if (!MathUtil.checkMatrixShapes(weights))
+            throw new Error("Incorrect weight matrix shapes");
+        const NN = new this([1, 1]);
+        NN.weightMatrices = weights;
+        NN.layerSizes = MathUtil.matricesToLayerSizes(weights);
+        return NN;
     }
 
     layerForward(input: number[], i: number): number[] {
@@ -705,11 +763,9 @@ class NeuralNet {
     }
 
     static test_forward(): void {
-        
         const layers = [33, 5, 5, 1];
         const numIn = layers[0];
         const NN = new NeuralNet(layers);
-
         for (let j = 0; j < 1000; j++) {
             const input = new Array(numIn);
             for (let i = 0; i < numIn; i++) {
@@ -1055,7 +1111,6 @@ class Game {
         this.copters = [];
 
         for (let i = 0; i < parameters.numCopters; i++) {
-
             const copter = new Copter(
                 parameters.copterX,
                 parameters.copterStartY,
@@ -1076,7 +1131,6 @@ class Game {
                     parameters.copterMaxYSpeed
                 )
             );
-
             if (i === 0 && parameters.hasHumanPlayer) {
                 copter.addPlayerControls();
             }
@@ -1167,7 +1221,7 @@ enum GameState {
     GameOverAI
 }
 
-class GlobalEventHandler {
+class GameManager {
 
     menu: Menu;
     gameOverMenu: GameOverMenu;
@@ -1294,8 +1348,8 @@ class Utils {
 
 
 function main(): void {
-    const handler = new GlobalEventHandler();
-    handler.start();
+    const manager = new GameManager();
+    manager.start();
 }
 
 Utils.onDocumentReady(main);
