@@ -1,3 +1,43 @@
+class Utils {
+
+    static drawCircle(canvas: HTMLCanvasElement, x: number, y: number, color: string, radius: number = 5): void {
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2*Math.PI);
+        ctx.fill();
+    }
+    
+    static drawSky(canvas: HTMLCanvasElement): void {
+        const ctx = canvas.getContext("2d")!;
+        const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+        gradient.addColorStop(0, "hsl(199, 100%, 50%)");
+        gradient.addColorStop(0.5, "hsl(199, 100%, 90%)");
+        gradient.addColorStop(1, "hsl(285, 100%, 80%)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    static drawDistanceText(canvas: HTMLCanvasElement, distance: number, i: number): void {
+        const text = "Distance: " + Math.floor(distance);
+        const y = 30 + 25*i;
+        const ctx = canvas.getContext("2d")!;
+        ctx.font = "bold 22px sans-serif";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.fillText(text, 30, y);
+        ctx.strokeText(text, 30, y);
+    }
+    
+    static onDocumentReady(callback: () => void): void {
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            setTimeout(callback, 1);
+        } else {
+            document.addEventListener("DOMContentLoaded", callback);
+        }
+    } 
+}
+
 class Cave {
 
     radiuses: number[];
@@ -676,7 +716,6 @@ class MathUtil {
         const v = [1, 2, 6, 8, 8, 8, 25];
         const sd = this.std(v);
         const correct = 7.342912729083656;
-        console.log({sd, correct});
         console.assert(sd === correct, "Incorrect SD value");
     }
 
@@ -686,7 +725,6 @@ class MathUtil {
         const w = this.matVecMul(M, v);
         const correct = [445., 210., -58.,  10.];
         const equal = this.vectorsEqual(w, correct);
-        console.log({w, correct});
         console.assert(equal, "Incorrect matrix vector multiply");
     }
 
@@ -695,7 +733,6 @@ class MathUtil {
         this.normalize(v);
         const correct = [0.90691797, -0.51370878, 0.19660459, 0.55176128, -1.57917884, -1.00204922, 1.439653];
         const equal = this.vectorsEqual(v, correct);
-        console.log({v, correct});
         console.assert(equal, "Incorrect vector normalize");
     }
 
@@ -707,7 +744,7 @@ class MathUtil {
             rs.push(r);
         }
         const sd = this.std(rs);
-        console.log({sdGen, sd});
+        console.assert(Math.abs(sdGen - sd) < 0.1, "Incorrect randomNormal")
     }
 
     static test_initializeWeightMatrix(): void {
@@ -722,10 +759,10 @@ class MathUtil {
         });
         const sdGen = Math.sqrt(2 / inputs);
         const sd = this.std(values);
-        console.log({sdGen, sd});
+        console.assert(Math.abs(sdGen - sd) < 0.1, "Incorrect initializeWeightMatrix")
     }
 
-    static test_ravelUnravel(): void {
+    static test_flattenUnflatten(): void {
 
         const matrices: number[][][] = [
             [[0.52540465, 0.52550628, 0.57995175, 0.39320161],
@@ -794,7 +831,7 @@ class MathUtil {
         this.test_normalize();
         this.test_randomNormal();
         this.test_initializeWeightMatrix();
-        this.test_ravelUnravel();
+        this.test_flattenUnflatten();
         this.test_matricesToLayerSizes();
         this.test_sampleNoReplacement();
         this.test_kUniquePairs();
@@ -1513,46 +1550,6 @@ class GameManager {
         const observe = this.observeState.bind(this);
         setInterval(observe, interval);
     }
-}
-
-class Utils {
-
-    static drawCircle(canvas: HTMLCanvasElement, x: number, y: number, color: string, radius: number = 5): void {
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, 2*Math.PI);
-        ctx.fill();
-    }
-    
-    static drawSky(canvas: HTMLCanvasElement): void {
-        const ctx = canvas.getContext("2d")!;
-        const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-        gradient.addColorStop(0, "hsl(199, 100%, 50%)");
-        gradient.addColorStop(0.5, "hsl(199, 100%, 90%)");
-        gradient.addColorStop(1, "hsl(285, 100%, 80%)");
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    
-    static drawDistanceText(canvas: HTMLCanvasElement, distance: number, i: number): void {
-        const text = "Distance: " + Math.floor(distance);
-        const y = 30 + 25*i;
-        const ctx = canvas.getContext("2d")!;
-        ctx.font = "bold 22px sans-serif";
-        ctx.fillStyle = "white";
-        ctx.strokeStyle = "black";
-        ctx.fillText(text, 30, y);
-        ctx.strokeText(text, 30, y);
-    }
-    
-    static onDocumentReady(callback: () => void): void {
-        if (document.readyState === "complete" || document.readyState === "interactive") {
-            setTimeout(callback, 1);
-        } else {
-            document.addEventListener("DOMContentLoaded", callback);
-        }
-    } 
 }
 
 
