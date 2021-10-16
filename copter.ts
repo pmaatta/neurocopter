@@ -538,15 +538,19 @@ class MathUtil {
     }
 
     static almostEqual(x: number, y: number, eps: number = 0.000001): boolean {
-        return Math.abs(x - y) < eps;
+        return Math.abs(x - y) <= eps;
     }
 
     static normalizeSingle(x: number, min: number, max: number): number {
-        if (min === max) throw new Error("Division by zero");
+        if (min === max) 
+            throw new Error("Division by zero");
         return (x - min) / (max - min);
     }
 
     static randomNormal(variance: number): number {
+        if (variance < 0)
+            throw new Error("Negative variance");
+        
         const sigma = Math.sqrt(variance);
         const u1 = 1 - Math.random();
         const u2 = Math.random();
@@ -1044,18 +1048,32 @@ class NeuralNetPopulation {
     size: number; 
     layerSizes: number[];
     individuals: Individual[];
+    mostFitProportion: number;
+    crossoverProportion: number;
+    mutationProbability: number;
 
-    constructor(genePool: number[][], layerSizes: number[], fitnesses: number[]) {
-        this.size = genePool.length;
-        this.layerSizes = layerSizes;
-        
+    constructor(
+        genePool: number[][], 
+        layerSizes: number[], 
+        fitnesses: number[],
+        mostFitProportion: number = 0.2,
+        crossoverProportion: number = 0.5,
+        mutationProbability: number = 0.08
+    ) {
+
         const individuals: Individual[] = [];
         for (let i = 0; i < genePool.length; i++) {
             const genes = genePool[i];
             const fitness = fitnesses[i];
             individuals.push(new Individual(genes, fitness));
         }
+
+        this.size = genePool.length;
+        this.layerSizes = layerSizes;
         this.individuals = individuals;
+        this.mostFitProportion = mostFitProportion;
+        this.crossoverProportion = crossoverProportion;
+        this.mutationProbability = mutationProbability;
     }
 
     genesToWeightMatrices(): number[][][][] {
@@ -1071,34 +1089,50 @@ class NeuralNetPopulation {
         this.individuals.sort((a, b) => b.fitness - a.fitness);
     }
 
-    selectMostFit(proportion: number = 0.5): Individual[] {
-        if (proportion <= 0 || proportion >= 1)
-            throw new Error("Invalid proportion of selected individuals")
-
+    selectMostFit(): void {
         this.sortByDescendingFitness();
-        const numSelected = Math.floor(this.size * proportion);
+        const numSelected = Math.floor(this.size * this.mostFitProportion);
         const selected = this.individuals.slice(0, numSelected);
-        return selected;
+        this.individuals = selected;
     }
 
-    crossover(parent1: Individual, parent2: Individual): Individual {
-        const crossoverPoint = Math.floor(0.5 * parent1.genes.length);
+    breed(parent1: Individual, parent2: Individual): Individual {
+        const crossoverPoint = Math.floor(this.crossoverProportion * parent1.genes.length);
         const genes1 = parent1.genes.slice(0, crossoverPoint);
         const genes2 = parent2.genes.slice(crossoverPoint);
         const newGenes = genes1.concat(genes2);
         return new Individual(newGenes, 0);
     }
 
+    crossover(): void {
+        const n = this.individuals.length;
+        const k = this.size - n;
+        const pairIndices: number[][] = MathUtil.kUniquePairs(n, k);
+
+        const newIndividuals: Individual[] = pairIndices.map(pair => {
+            const parent1 = this.individuals[pair[0]];
+            const parent2 = this.individuals[pair[1]];
+            return this.breed(parent1, parent2);
+        });
+
+        this.individuals = this.individuals.concat(newIndividuals);
+    }
+
     mutate(): void {
         this.individuals.forEach(individual => {
             for (let i = 0; i < individual.genes.length; i++) {
-                if (Math.random() < 0.1) {
+                if (Math.random() < this.mutationProbability) {
                     individual.genes[i] += 0.2*Math.random() - 0.1;
                 }
             }
         });
     }
 
+    generationStep(): void {
+        this.selectMostFit();
+        this.crossover();
+        this.mutate();
+    }
 }
 
 enum MenuState {
@@ -1253,7 +1287,7 @@ class GameParameters {
         canvas: HTMLCanvasElement = document.querySelector("canvas")!,
         pixelOffsetPerMillisecond: number = 0.5, 
         
-        caveMinRadius: number = 70,  // 200
+        caveMinRadius: number = 200, // 70, 100, 200
         caveRadiusVariation: number = 80,
         caveDyVariation: number = 160,
         caveXSpacing: number = 100,
@@ -1473,12 +1507,14 @@ class GameManager {
     gameOverMenu: GameOverMenu;
     game: Game;
     gameState: GameState;
+    numCoptersAI: number;
 
     constructor() {
         this.menu = new Menu();
         this.gameOverMenu = new GameOverMenu();
         this.game = new Game(new GameParameters());
         this.gameState = GameState.InMenu;
+        this.numCoptersAI = 100;
     }
 
     observeState(): void {
@@ -1501,7 +1537,7 @@ class GameManager {
                         break;
                         
                     case MenuState.AIButtonClicked:
-                        this.game = new Game(new GameParameters(50, false));
+                        this.game = new Game(new GameParameters(this.numCoptersAI, false));
                         this.gameState = GameState.InGame;
                         this.menu.deactivate();
                         this.game.start();
@@ -1539,10 +1575,15 @@ class GameManager {
                 break;
 
             case GameState.GameOverAI:
-                this.game = new Game(new GameParameters(50, false));
+
+                const population = this.game.getPopulation();
+                population.generationStep();
+                this.game = new Game(new GameParameters(this.numCoptersAI, false));
+                this.game.setWeightsFromPopulation(population);
                 this.gameState = GameState.InGame;
                 this.game.start();
                 break;
+
         }
     }
 
