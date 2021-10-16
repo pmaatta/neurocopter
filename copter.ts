@@ -263,6 +263,18 @@ class Copter {
         document.addEventListener("mouseup",   () => { this.thrustOff() });
     }
 
+    getFlattenedWeights(): number[] {
+        return MathUtil.flattenMatrices(this.strategy.neuralNet.weightMatrices);
+    }
+
+    getLayerSizes(): number[] {
+        return this.strategy.neuralNet.layerSizes;
+    }
+
+    setWeights(weightMatrices: number[][][]): void {
+        this.strategy.neuralNet.weightMatrices = weightMatrices;
+    }
+
     thrustOn(): void {
         this.giveThrust = true;
     }
@@ -556,7 +568,7 @@ class MathUtil {
         return layerSizes;
     }
 
-    static unravelMatrices(matrices: number[][][]): number[] {
+    static flattenMatrices(matrices: number[][][]): number[] {
         const output: number[] = [];
         matrices.forEach(matrix => {
             matrix.forEach(row => {
@@ -568,7 +580,7 @@ class MathUtil {
         return output;
     }
 
-    static ravelMatrices(values: number[], matrixShapes: number[][]): number[][][] {
+    static unflattenMatrices(values: number[], matrixShapes: number[][]): number[][][] {
 
         let numValues = 0;
         matrixShapes.forEach(shape => { 
@@ -668,14 +680,14 @@ class MathUtil {
         ];
         const matrixShapes: number[][] = [[3,4], [2,5], [3,2]];
 
-        const unraveled: number[] = this.unravelMatrices(matrices);
-        const raveled: number[][][] = this.ravelMatrices(unraveled, matrixShapes);
+        const flattened: number[] = this.flattenMatrices(matrices);
+        const unflattened: number[][][] = this.unflattenMatrices(flattened, matrixShapes);
 
         let equal = true;
         for (let m = 0; m < 3; m++) {
             for (let row = 0; row < matrixShapes[m][0]; row++) {
                 for (let col = 0; col < matrixShapes[m][1]; col++) {
-                    if (matrices[m][row][col] !== raveled[m][row][col]) {
+                    if (matrices[m][row][col] !== unflattened[m][row][col]) {
                         equal = false;
                         break;
                     }
@@ -779,6 +791,8 @@ class NeuralNet {
 
 interface AIStrategy {
 
+    neuralNet: NeuralNet;
+
     encodeInputData(
         rs: number[],
         dys: number[],
@@ -791,6 +805,12 @@ interface AIStrategy {
 }
 
 class RandomAI implements AIStrategy {
+
+    neuralNet: NeuralNet;
+
+    constructor() {
+        this.neuralNet = new NeuralNet([1, 1]);
+    }
     
     encodeInputData(
         rs: number[],
@@ -885,80 +905,25 @@ class NeuralNetAI implements AIStrategy {
     }
 }
 
-class GameParameters {
+class NeuralNetPopulation {
 
-    numCopters: number;
-    hasHumanPlayer: boolean;
-    canvas: HTMLCanvasElement;
-    pixelOffsetPerMillisecond: number;
-    
-    caveMinRadius: number;
-    caveRadiusVariation: number;
-    caveDyVariation: number;
-    caveXSpacing: number;
-    initialRadiuses: number[];
-    initialDYs: number[];
-    initialXs: number[];
-    
-    gravity: number;
-    copterX: number;
-    copterStartY: number;
-    copterMaxY: number;
-    copterStartYSpeed: number;
-    copterMaxYSpeed: number;
-    copterCollisionOffsets: number[][];
-    copterThrust: number;
-    copterTrailLength: number;
-    copterTrailInterval: number;
-    
-    constructor(
-        numCopters: number = 1, 
-        hasHumanPlayer: boolean = true,
-        canvas: HTMLCanvasElement = document.querySelector("canvas")!,
-        pixelOffsetPerMillisecond: number = 0.5, 
-        
-        caveMinRadius: number = 70,  // 200
-        caveRadiusVariation: number = 80,
-        caveDyVariation: number = 160,
-        caveXSpacing: number = 100,
-        initialRadiuses: number[] = [100, 200, 300, 350, 250, 270, 220, 200, 300, 240, 150, 250, 50, 120, 100, 60], 
-        initialDYs: number[] = [0, 50, -50, 10, 20, 100, 40, 0, 50, -50, 10, 20, 100, 40, 60, 120], 
-        initialXs: number[] = [-100, 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400], 
-        
-        gravity: number = 0.3, 
-        copterX: number = 500, 
-        copterStartY: number = 300, 
-        copterStartYSpeed: number = 0,
-        copterMaxYSpeed: number = 5,
-        copterCollisionOffsets: number[][] = [[-1, -4], [0, -26], [-52, -26], [-63, -23], [-44, -3]],
-        copterThrust: number = 1.6, 
-        copterTrailLength: number = 11, 
-        copterTrailInterval: number = 10
-    ) 
-    {
-        this.numCopters = numCopters;
-        this.hasHumanPlayer = hasHumanPlayer;
-        this.canvas = canvas;
-        this.pixelOffsetPerMillisecond = pixelOffsetPerMillisecond;
-        
-        this.caveMinRadius = caveMinRadius;
-        this.caveRadiusVariation = caveRadiusVariation;
-        this.caveDyVariation = caveDyVariation;
-        this.caveXSpacing = caveXSpacing;
-        this.initialRadiuses = initialRadiuses;
-        this.initialDYs = initialDYs;
-        this.initialXs = initialXs;
-        
-        this.gravity = gravity;
-        this.copterX = copterX;
-        this.copterStartY = copterStartY;
-        this.copterMaxY = canvas.height;
-        this.copterStartYSpeed = copterStartYSpeed;
-        this.copterMaxYSpeed = copterMaxYSpeed;
-        this.copterCollisionOffsets = copterCollisionOffsets;
-        this.copterThrust = copterThrust;
-        this.copterTrailLength = copterTrailLength;
-        this.copterTrailInterval = copterTrailInterval;
+    size: number; 
+    genePool: number[][];  // flattened NN weights
+    layerSizes: number[];
+
+    constructor(genePool: number[][], layerSizes: number[]) {
+        this.size = genePool.length;
+        this.genePool = genePool;
+        this.layerSizes = layerSizes;
+    }
+
+    genesToWeightMatrices(): number[][][][] {
+        return this.genePool.map(flatWeights => {
+            return MathUtil.unflattenMatrices(
+                flatWeights, 
+                MathUtil.layersToMatrixShapes(this.layerSizes)
+            );
+        });
     }
 }
 
@@ -1082,6 +1047,83 @@ class GameOverMenu extends Menu {
     }
 }
 
+class GameParameters {
+
+    numCopters: number;
+    hasHumanPlayer: boolean;
+    canvas: HTMLCanvasElement;
+    pixelOffsetPerMillisecond: number;
+    
+    caveMinRadius: number;
+    caveRadiusVariation: number;
+    caveDyVariation: number;
+    caveXSpacing: number;
+    initialRadiuses: number[];
+    initialDYs: number[];
+    initialXs: number[];
+    
+    gravity: number;
+    copterX: number;
+    copterStartY: number;
+    copterMaxY: number;
+    copterStartYSpeed: number;
+    copterMaxYSpeed: number;
+    copterCollisionOffsets: number[][];
+    copterThrust: number;
+    copterTrailLength: number;
+    copterTrailInterval: number;
+    
+    constructor(
+        numCopters: number = 1, 
+        hasHumanPlayer: boolean = true,
+        canvas: HTMLCanvasElement = document.querySelector("canvas")!,
+        pixelOffsetPerMillisecond: number = 0.5, 
+        
+        caveMinRadius: number = 70,  // 200
+        caveRadiusVariation: number = 80,
+        caveDyVariation: number = 160,
+        caveXSpacing: number = 100,
+        initialRadiuses: number[] = [100, 200, 300, 350, 250, 270, 220, 200, 300, 240, 150, 250, 50, 120, 100, 60], 
+        initialDYs: number[] = [0, 50, -50, 10, 20, 100, 40, 0, 50, -50, 10, 20, 100, 40, 60, 120], 
+        initialXs: number[] = [-100, 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400], 
+        
+        gravity: number = 0.3, 
+        copterX: number = 500, 
+        copterStartY: number = 300, 
+        copterStartYSpeed: number = 0,
+        copterMaxYSpeed: number = 5,
+        copterCollisionOffsets: number[][] = [[-1, -4], [0, -26], [-52, -26], [-63, -23], [-44, -3]],
+        copterThrust: number = 1.6, 
+        copterTrailLength: number = 11, 
+        copterTrailInterval: number = 10
+    ) 
+    {
+        this.numCopters = numCopters;
+        this.hasHumanPlayer = hasHumanPlayer;
+        this.canvas = canvas;
+        this.pixelOffsetPerMillisecond = pixelOffsetPerMillisecond;
+        
+        this.caveMinRadius = caveMinRadius;
+        this.caveRadiusVariation = caveRadiusVariation;
+        this.caveDyVariation = caveDyVariation;
+        this.caveXSpacing = caveXSpacing;
+        this.initialRadiuses = initialRadiuses;
+        this.initialDYs = initialDYs;
+        this.initialXs = initialXs;
+        
+        this.gravity = gravity;
+        this.copterX = copterX;
+        this.copterStartY = copterStartY;
+        this.copterMaxY = canvas.height;
+        this.copterStartYSpeed = copterStartYSpeed;
+        this.copterMaxYSpeed = copterMaxYSpeed;
+        this.copterCollisionOffsets = copterCollisionOffsets;
+        this.copterThrust = copterThrust;
+        this.copterTrailLength = copterTrailLength;
+        this.copterTrailInterval = copterTrailInterval;
+    }
+}
+
 class Game {
 
     parameters: GameParameters;
@@ -1136,6 +1178,25 @@ class Game {
             }
             this.copters.push(copter);
         }
+    }
+
+    setWeightsFromPopulation(population: NeuralNetPopulation): void {
+        const allMatrices = population.genesToWeightMatrices();
+        for (let i = 0; i < allMatrices.length; i++) {
+            this.copters[i].setWeights(allMatrices[i]);
+        }
+    }
+
+    getAllWeights(): number[][] {
+        return this.copters.map(copter => copter.getFlattenedWeights());
+    }
+
+    getLayerSizes(): number[] {
+        return this.copters[0].getLayerSizes();
+    }
+
+    getPopulation(): NeuralNetPopulation {
+        return new NeuralNetPopulation(this.getAllWeights(), this.getLayerSizes());
     }
 
     checkCollision(copter: Copter): number[] {
