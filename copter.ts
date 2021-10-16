@@ -613,6 +613,65 @@ class MathUtil {
         return output;
     }
 
+    static sampleNoReplacement(array: number[], k: number): number[] {
+        const n = array.length;
+        if (k > n) 
+            throw new Error(`Cannot sample ${k} elements from array with ${n} elements`);
+
+        const sampleIndices: number[] = [];
+        for (let i = 0; i < k; i++) {
+            let index;
+            do {
+                index = Math.floor(Math.random() * n);
+            } while (sampleIndices.indexOf(index) !== -1);
+            sampleIndices.push(index);
+        }
+        return sampleIndices.map(index => array[index]);
+    }
+
+    static arrayHasUniqueValues(array: number[]): boolean {
+        let unique = true;
+        const elementCounts: { [key: number]: number } = {};
+        array.forEach(element => {
+            if (elementCounts[element] === undefined)
+                elementCounts[element] = 1;
+            else
+                unique = false;
+        });
+        return unique;
+    }
+
+    static arrayHasUniquePairs(array: number[][]): boolean {
+        let unique = true;
+        const elementCounts: { [key: string]: number } = {};
+        array.forEach(element => {
+            if (elementCounts[element.toString()] === undefined)
+                elementCounts[element.toString()] = 1;
+            else
+                unique = false;
+        });
+        return unique;
+    }
+
+    static kUniquePairs(n: number, k: number): number[][] {
+        const allUniquePairs: number[][] = [];
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) { 
+                allUniquePairs.push([i, j]);
+            }
+        }
+        if (k > allUniquePairs.length)
+            throw new Error(`Cannot generate ${k} unique pairs from ${n} elements`);
+
+        const allIndices = new Array(allUniquePairs.length);
+        for (let i = 0; i < allUniquePairs.length; i++)
+            allIndices[i] = i;
+
+        const indices: number[] = this.sampleNoReplacement(allIndices, k);
+        const pairs = indices.map(index => allUniquePairs[index]);
+        return pairs;
+    }
+
     static test_std(): void {
         const v = [1, 2, 6, 8, 8, 8, 25];
         const sd = this.std(v);
@@ -704,6 +763,31 @@ class MathUtil {
         console.assert(equal, "Incorrect conversion from weight matrices to layer sizes");
     }
 
+    static test_sampleNoReplacement(): void {
+        const array = [1, 6, 7, 8, -22, 52, 45, 96, 102, 255, 43, 46, 902];
+        let unique = true;
+        for (let i = 0; i < 100; i++) {
+            const sample = this.sampleNoReplacement(array, 5);
+            if (!this.arrayHasUniqueValues(sample)) {
+                unique = false;
+                break;
+            }
+        }
+        console.assert(unique, "Incorrect no replacement sampling");
+    }
+
+    static test_kUniquePairs(): void {
+        let unique = true;
+        for (let i = 0; i < 100; i++) {
+            const pairs = this.kUniquePairs(10, 10);
+            if (!this.arrayHasUniquePairs(pairs)) {
+                unique = false;
+                break;
+            }
+        }
+        console.assert(unique, "kUniquePairs does not generate unique pairs");
+    }
+
     static test(): void {
         this.test_std();
         this.test_matVecMul();
@@ -712,6 +796,8 @@ class MathUtil {
         this.test_initializeWeightMatrix();
         this.test_ravelUnravel();
         this.test_matricesToLayerSizes();
+        this.test_sampleNoReplacement();
+        this.test_kUniquePairs();
     }
 }
 
@@ -905,26 +991,77 @@ class NeuralNetAI implements AIStrategy {
     }
 }
 
+class Individual {
+
+    genes: number[];
+    fitness: number;
+
+    constructor(genes: number[], fitness: number) {
+        this.genes = genes;
+        this.fitness = fitness;
+    }
+}
+
 class NeuralNetPopulation {
 
     size: number; 
-    genePool: number[][];  // flattened NN weights
     layerSizes: number[];
+    individuals: Individual[];
 
-    constructor(genePool: number[][], layerSizes: number[]) {
+    constructor(genePool: number[][], layerSizes: number[], fitnesses: number[]) {
         this.size = genePool.length;
-        this.genePool = genePool;
         this.layerSizes = layerSizes;
+        
+        const individuals: Individual[] = [];
+        for (let i = 0; i < genePool.length; i++) {
+            const genes = genePool[i];
+            const fitness = fitnesses[i];
+            individuals.push(new Individual(genes, fitness));
+        }
+        this.individuals = individuals;
     }
 
     genesToWeightMatrices(): number[][][][] {
-        return this.genePool.map(flatWeights => {
+        return this.individuals.map(individual => {
             return MathUtil.unflattenMatrices(
-                flatWeights, 
+                individual.genes, 
                 MathUtil.layersToMatrixShapes(this.layerSizes)
             );
         });
     }
+
+    sortByDescendingFitness(): void {
+        this.individuals.sort((a, b) => b.fitness - a.fitness);
+    }
+
+    selectMostFit(proportion: number = 0.5): Individual[] {
+        if (proportion <= 0 || proportion >= 1)
+            throw new Error("Invalid proportion of selected individuals")
+
+        this.sortByDescendingFitness();
+        const numSelected = Math.floor(this.size * proportion);
+        const selected = this.individuals.slice(0, numSelected);
+        return selected;
+    }
+
+    crossover(parent1: Individual, parent2: Individual): Individual {
+        const crossoverPoint = Math.floor(0.5 * parent1.genes.length);
+        const genes1 = parent1.genes.slice(0, crossoverPoint);
+        const genes2 = parent2.genes.slice(crossoverPoint);
+        const newGenes = genes1.concat(genes2);
+        return new Individual(newGenes, 0);
+    }
+
+    mutate(): void {
+        this.individuals.forEach(individual => {
+            for (let i = 0; i < individual.genes.length; i++) {
+                if (Math.random() < 0.1) {
+                    individual.genes[i] += 0.2*Math.random() - 0.1;
+                }
+            }
+        });
+    }
+
 }
 
 enum MenuState {
@@ -1181,6 +1318,9 @@ class Game {
     }
 
     setWeightsFromPopulation(population: NeuralNetPopulation): void {
+        if (population.size !== this.copters.length)
+            throw new Error("Population size does not match number of copters");
+        
         const allMatrices = population.genesToWeightMatrices();
         for (let i = 0; i < allMatrices.length; i++) {
             this.copters[i].setWeights(allMatrices[i]);
@@ -1195,8 +1335,16 @@ class Game {
         return this.copters[0].getLayerSizes();
     }
 
+    getFitnesses(): number[] {
+        return this.copters.map(copter => copter.distance);
+    }
+
     getPopulation(): NeuralNetPopulation {
-        return new NeuralNetPopulation(this.getAllWeights(), this.getLayerSizes());
+        return new NeuralNetPopulation(
+            this.getAllWeights(), 
+            this.getLayerSizes(), 
+            this.getFitnesses()
+        );
     }
 
     checkCollision(copter: Copter): number[] {
