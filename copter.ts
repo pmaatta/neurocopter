@@ -1506,25 +1506,31 @@ class Game {
         return [];
     }
     
-    caveStep(elapsedTime: number): void {
+    caveStep(elapsedTime: number, doDraw: boolean): void {
         this.cave.updateCoords();
         this.cave.scroll(elapsedTime);
-        this.cave.draw(this.parameters.canvas);
+        if (doDraw) {
+            this.cave.draw(this.parameters.canvas);
+        }
     }
 
-    copterStep(elapsedTime: number): void {
+    copterStep(elapsedTime: number, doDraw: boolean): void {
         for (let i = 0; i < this.copters.length; i++) {
             const copter = this.copters[i];
             const hitPoint = this.checkCollision(copter);
             const hit = hitPoint.length > 0;
             copter.update(elapsedTime, hit, hitPoint);
-            copter.draw(this.parameters.canvas, i);
+            if (doDraw) {
+                copter.draw(this.parameters.canvas, i);
+            }
         }
     }
 
     AIStep(): void {
         this.copters.forEach(copter => {
-            if (copter.dead || copter.isHuman) return;
+
+            if (copter.dead || copter.isHuman)
+                return;
 
             const encodedInput = copter.strategy.encodeInputData(
                 this.cave.radiuses,
@@ -1542,18 +1548,25 @@ class Game {
         });
     }
 
-    step(elapsedTime: number): void {
+    step(elapsedTime: number, doDraw: boolean = true): void {
         Utils.drawSky(this.parameters.canvas);
         this.AIStep();
-        this.caveStep(elapsedTime);
-        this.copterStep(elapsedTime);
+        this.caveStep(elapsedTime, doDraw);
+        this.copterStep(elapsedTime, doDraw);
         if (!this.parameters.hasHumanPlayer) {
             this.populationStats.draw(this.parameters.canvas);
         }
         this.gameOver = this.copters.every(copter => copter.dead);
     }
 
+    startNoDraw(): void {
+        while(!this.gameOver) {
+            this.step(1000/60, false);
+        }
+    }
+
     start(): void {
+
         const self = this;
 
         function frame(timestamp: number) {
@@ -1622,7 +1635,8 @@ class GameManager {
                         this.game = new Game(new GameParameters(this.numCoptersAI, false), this.stats);
                         this.gameState = GameState.InGame;
                         this.menu.deactivate();
-                        this.game.start();
+                        this.game.startNoDraw();
+                        // this.game.start();
                         break;
                 }
                 break;
@@ -1662,11 +1676,16 @@ class GameManager {
                 const population = this.game.getPopulation();
                 this.stats.update(population);
                 population.generationStep();
-                
+
                 this.game = new Game(new GameParameters(this.numCoptersAI, false), this.stats);
                 this.game.setWeightsFromPopulation(population);
                 this.gameState = GameState.InGame;
-                this.game.start();
+
+                if (this.stats.currentGeneration < this.stats.maxGenerations) {
+                    this.game.startNoDraw();
+                } else {
+                    this.game.start();
+                }
                 break;
 
         }
