@@ -1135,6 +1135,78 @@ class NeuralNetPopulation {
     }
 }
 
+class PopulationStatistics {
+
+    maxGenerations: number;
+    currentGeneration: number;
+    allTimeBestFitness: number;
+    bestFitness: number;
+    averageFitness: number;
+    movingAverageFitness: number;
+    movingAverageLength: number;
+    movingAverageBuffer: number[];
+
+    constructor(maxGenerations: number = 1000) {
+        this.maxGenerations = maxGenerations;
+        this.currentGeneration = 1;
+        this.allTimeBestFitness = 0;
+        this.bestFitness = 0;
+        this.averageFitness = 0;
+        this.movingAverageFitness = 0;
+        this.movingAverageLength = 10;
+        this.movingAverageBuffer = [];
+    }
+
+    update(population: NeuralNetPopulation): void {
+
+        if (this.currentGeneration >= this.maxGenerations)
+            return;
+        this.currentGeneration += 1;
+
+        const fitnesses = population.individuals.map(i => i.fitness);
+
+        // Generation best
+        fitnesses.sort((a, b) => b - a);
+        this.bestFitness = fitnesses[0];
+        if (this.bestFitness > this.allTimeBestFitness) {
+            this.allTimeBestFitness = this.bestFitness;
+        }
+
+        // Generation average
+        const averageFitness = MathUtil.mean(fitnesses);
+        this.averageFitness = averageFitness;
+
+        // Moving average
+        if (this.movingAverageBuffer.length === this.movingAverageLength) {
+            this.movingAverageBuffer.shift();
+        }
+        this.movingAverageBuffer.push(averageFitness);
+        this.movingAverageFitness = MathUtil.mean(this.movingAverageBuffer);
+    }
+
+    draw(canvas: HTMLCanvasElement): void {
+
+        const ctx = canvas.getContext("2d")!;
+        ctx.font = "bold 22px sans-serif";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+
+        const maxGenText = "Max generations: " + this.maxGenerations;
+        const genText = "Generation: " + this.currentGeneration;
+        const alltimeText = "All time best distance: " + Math.round(this.allTimeBestFitness);
+        const bestText = "Generation best distance: " + Math.round(this.bestFitness);
+        const avgText = "Generation average distance: " + Math.round(this.averageFitness);
+        const moveAvgText = `Moving average distance (${this.movingAverageLength} gen): ` + Math.round(this.movingAverageFitness);
+        
+        const texts = [maxGenText, genText, alltimeText, bestText, avgText, moveAvgText];
+
+        texts.forEach((text, index) => {
+            ctx.fillText(text, 750, 20 + index*20);
+            ctx.strokeText(text, 750, 20 + index*20);
+        });
+    }
+}
+
 enum MenuState {
     Inactive,
     WaitingForInput,
@@ -1287,7 +1359,7 @@ class GameParameters {
         canvas: HTMLCanvasElement = document.querySelector("canvas")!,
         pixelOffsetPerMillisecond: number = 0.5, 
         
-        caveMinRadius: number = 200, // 70, 100, 200
+        caveMinRadius: number = 100, // 70, 100, 200
         caveRadiusVariation: number = 80,
         caveDyVariation: number = 160,
         caveXSpacing: number = 100,
@@ -1335,13 +1407,19 @@ class GameParameters {
 class Game {
 
     parameters: GameParameters;
+    populationStats: PopulationStatistics;
     cave: Cave;
     copters: Copter[];
     gameOver: boolean;
     previousTimestamp: number;
 
-    constructor(parameters: GameParameters) {
+    constructor(
+        parameters: GameParameters, 
+        populationStats: PopulationStatistics = new PopulationStatistics()
+    ) {
+
         this.parameters = parameters;
+        this.populationStats = populationStats;
         this.gameOver = false;
         this.previousTimestamp = 0;
 
@@ -1359,7 +1437,6 @@ class Game {
         );
 
         this.copters = [];
-
         for (let i = 0; i < parameters.numCopters; i++) {
             const copter = new Copter(
                 parameters.copterX,
@@ -1470,6 +1547,9 @@ class Game {
         this.AIStep();
         this.caveStep(elapsedTime);
         this.copterStep(elapsedTime);
+        if (!this.parameters.hasHumanPlayer) {
+            this.populationStats.draw(this.parameters.canvas);
+        }
         this.gameOver = this.copters.every(copter => copter.dead);
     }
 
@@ -1508,12 +1588,14 @@ class GameManager {
     game: Game;
     gameState: GameState;
     numCoptersAI: number;
+    stats: PopulationStatistics;
 
     constructor() {
         this.menu = new Menu();
         this.gameOverMenu = new GameOverMenu();
         this.game = new Game(new GameParameters());
         this.gameState = GameState.InMenu;
+        this.stats = new PopulationStatistics();
         this.numCoptersAI = 100;
     }
 
@@ -1537,7 +1619,7 @@ class GameManager {
                         break;
                         
                     case MenuState.AIButtonClicked:
-                        this.game = new Game(new GameParameters(this.numCoptersAI, false));
+                        this.game = new Game(new GameParameters(this.numCoptersAI, false), this.stats);
                         this.gameState = GameState.InGame;
                         this.menu.deactivate();
                         this.game.start();
@@ -1576,9 +1658,12 @@ class GameManager {
 
             case GameState.GameOverAI:
 
+                // Genetic algorithm step
                 const population = this.game.getPopulation();
+                this.stats.update(population);
                 population.generationStep();
-                this.game = new Game(new GameParameters(this.numCoptersAI, false));
+                
+                this.game = new Game(new GameParameters(this.numCoptersAI, false), this.stats);
                 this.game.setWeightsFromPopulation(population);
                 this.gameState = GameState.InGame;
                 this.game.start();
