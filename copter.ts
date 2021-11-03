@@ -853,8 +853,6 @@ class NeuralNet {
             throw new Error("Must have at least input and output layer");
         if (layerSizes.some(value => value < 1)) 
             throw new Error("Invalid layer size values");
-        if (layerSizes[layerSizes.length - 1] !== 1) 
-            throw new Error("Multiple outputs not supported");
 
         const weightMatrices: number[][][] = [];
 
@@ -1029,6 +1027,19 @@ class NeuralNetAI implements AIStrategy {
     decision(encodedInput: number[]): boolean {
         const output = this.neuralNet.forward(encodedInput);
         return output[0] > 0.5;
+    }
+}
+
+class NeuralNetAI2 extends NeuralNetAI {
+
+    constructor(canvasHeight: number, copterMaxYSpeed: number, lookAheadPointCount: number = 6) {
+        super(canvasHeight, copterMaxYSpeed, lookAheadPointCount);
+        this.neuralNet = new NeuralNet([this.inputSize, 5, 5, 2]);
+    }
+    
+    decision(encodedInput: number[]): boolean {
+        const output = this.neuralNet.forward(encodedInput);
+        return output[0] > output[1];
     }
 }
 
@@ -1453,7 +1464,7 @@ class Game {
                     parameters.copterTrailInterval, 
                     parameters.pixelOffsetPerMillisecond
                 ),
-                new NeuralNetAI(
+                new NeuralNetAI2(
                     parameters.canvas.height, 
                     parameters.copterMaxYSpeed
                 )
