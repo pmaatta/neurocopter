@@ -1646,8 +1646,8 @@ class GameManager {
                         this.game = new Game(new GameParameters(this.numCoptersAI, false), this.stats);
                         this.gameState = GameState.InGame;
                         this.menu.deactivate();
-                        this.game.startNoDraw();
-                        // this.game.start();
+                        // this.game.startNoDraw();
+                        this.game.start();
                         break;
                 }
                 break;
@@ -1692,11 +1692,13 @@ class GameManager {
                 this.game.setWeightsFromPopulation(population);
                 this.gameState = GameState.InGame;
 
-                if (this.stats.currentGeneration < this.stats.maxGenerations) {
-                    this.game.startNoDraw();
-                } else {
-                    this.game.start();
-                }
+                // if (this.stats.currentGeneration < this.stats.maxGenerations) {
+                //     this.game.startNoDraw();
+                // } else {
+                //     this.game.start();
+                // }
+                this.game.start();
+
                 break;
 
         }
